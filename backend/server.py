@@ -359,22 +359,32 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(post_data.decode('utf-8'))
                 
                 # Create Stripe Session
-                checkout_session = stripe.checkout.Session.create(
-                    payment_method_types=['card'],
-                    line_items=[{
-                        'price_data': {
-                            'currency': 'usd',
-                            'product_data': {
-                                'name': 'Mithi Baby Personalized Song',
-                                'description': f"Personalized Lori for {data.get('babyName')} ({data.get('language')})",
+                    # Determine callback URL dynamically (Localhost vs Cloud Run)
+                    base_url = self.headers.get('Origin')
+                    if not base_url:
+                        base_url = self.headers.get('Referer')
+                        if base_url and base_url.endswith('/'):
+                            base_url = base_url[:-1]
+                    
+                    if not base_url:
+                        base_url = f"http://localhost:{PORT}" # Fallback
+                        
+                    checkout_session = stripe.checkout.Session.create(
+                        payment_method_types=['card'],
+                        line_items=[{
+                            'price_data': {
+                                'currency': 'usd',
+                                'product_data': {
+                                    'name': 'Mithi Baby Personalized Song',
+                                    'description': f"Personalized Lori for {data.get('babyName')} ({data.get('language')})",
+                                },
+                                'unit_amount': 100, # $1.00
                             },
-                            'unit_amount': 100, # $1.00
-                        },
-                        'quantity': 1,
-                    }],
-                    mode='payment',
-                    success_url=f"http://localhost:{PORT}/?session_id={{CHECKOUT_SESSION_ID}}", # Redirect back to frontend
-                    cancel_url=f"http://localhost:{PORT}/",
+                            'quantity': 1,
+                        }],
+                        mode='payment',
+                        success_url=f"{base_url}/?session_id={{CHECKOUT_SESSION_ID}}", # Redirect back to frontend
+                        cancel_url=f"{base_url}/",
                     metadata={
                         'babyName': data.get('babyName'),
                         'language': data.get('language'),
