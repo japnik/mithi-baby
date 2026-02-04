@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Fix ImageMagick policy to allow text rendering (common MoviePy issue)
-RUN sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
+RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml; elif [ -f /etc/ImageMagick-7/policy.xml ]; then sed -i 's/none/read,write/g' /etc/ImageMagick-7/policy.xml; fi
 
 # Set the working directory
 WORKDIR /app
