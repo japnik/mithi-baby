@@ -479,12 +479,18 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         type_ = entry.get('type', 'INFO')
         
         with open(SESSION_FILE, 'a') as f:
-            f.write(f"\n## [{type_}] {msg}\n")
-            f.write(f"**Time**: {timestamp}\n")
+            log_content = f"\n## [{type_}] {msg}\n"
+            log_content += f"**Time**: {timestamp}\n"
             if data:
-                f.write("### Data\n")
-                f.write(f"```json\n{json.dumps(data, indent=2, ensure_ascii=False)}\n```\n")
-            f.write("---\n")
+                log_content += "### Data\n"
+                log_content += f"```json\n{json.dumps(data, indent=2, ensure_ascii=False)}\n```\n"
+            log_content += "---\n"
+            f.write(log_content)
+            
+            # MIRROR TO CONSOLE for Cloud Run visibility
+            print(f"📝 {type_}: {msg}")
+            if data:
+                print(f"📊 DATA: {json.dumps(data)}")
             
     # Disable default console logging to keep terminal clean
     def log_message(self, format, *args):
