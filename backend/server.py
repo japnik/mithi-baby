@@ -69,16 +69,26 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 f.write(response.read())
 
     def do_GET(self):
-        if self.path == '/api/songs':
+        if self.path.startswith('/api/songs'):
              # List songs from Local + Supabase
              try:
+                 from urllib.parse import urlparse, parse_qs
+                 query = parse_qs(urlparse(self.path).query)
+                 requesting_user_id = query.get('user_id', [None])[0]
+                 
                  songs_map = {} # Use dict to dedup by ID
                  
                  # ONLY Supabase (User Request)
                  if supabase:
                      try:
                          # Fetch completed songs only
-                         response = supabase.table("songs").select("*").eq("status", "completed").order("created_at", desc=True).limit(50).execute()
+                         query_builder = supabase.table("songs").select("*").eq("status", "completed")
+                         
+                         if requesting_user_id:
+                             print(f"Filtering songs for user: {requesting_user_id}")
+                             query_builder = query_builder.eq("user_id", requesting_user_id)
+                         
+                         response = query_builder.order("created_at", desc=True).limit(50).execute()
                          remote_songs = response.data
                          
                          for r_song in remote_songs:

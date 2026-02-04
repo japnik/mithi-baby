@@ -35,7 +35,7 @@ def send_payment_success_email(user_email, baby_name):
         """
         
         params = {
-            "from": "Mithi Baby <onboarding@resend.dev>",
+            "from": "Mithi Baby <hello@mithi.baby>",
             "to": [user_email],
             "subject": f"🎶 We've started on {baby_name}'s song!",
             "html": html_content,
@@ -83,7 +83,7 @@ def send_completion_email(user_email, baby_name, song_title, video_url, youtube_
         """
 
         params = {
-            "from": "Mithi Baby <onboarding@resend.dev>",
+            "from": "Mithi Baby <hello@mithi.baby>",
             "to": [user_email],
             "subject": f"✨ {baby_name}'s Magical Song is Ready!",
             "html": html_content,

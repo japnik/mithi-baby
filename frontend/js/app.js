@@ -440,11 +440,12 @@ async function loadSongsFromStorage() {
         let songs = [];
 
         // 1. Try Supabase Direct (Leverages RLS + Auth Session)
-        if (supabaseClient) {
-            console.log("Fetching songs from Supabase...");
+        if (supabaseClient && state.user) {
+            console.log("Fetching songs from Supabase for user:", state.user.id);
             const { data, error } = await supabaseClient
                 .from('songs')
                 .select('*')
+                .eq('user_id', state.user.id) // Filter by logged-in user
                 .order('created_at', { ascending: false });
 
             if (!error && data) {
@@ -456,9 +457,9 @@ async function loadSongsFromStorage() {
         }
 
         // 2. Fallback/Merge with Backend API (legacy/global)
-        if (songs.length === 0) {
+        if (songs.length === 0 && state.user) {
             console.log("Falling back to Backend API...");
-            const response = await fetch('/api/songs');
+            const response = await fetch(`/api/songs?user_id=${state.user.id}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.songs) songs = data.songs;

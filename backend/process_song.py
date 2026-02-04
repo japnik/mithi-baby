@@ -134,7 +134,7 @@ def generate_lyrics(baby_name, language, characters, occasion):
     mood_requirements = f"""
 - Tone: Soothing, gentle, slow, and calm (Sleep inducing lullaby)
 - Themes: Sleep, sweet dreams, moon, stars, protection, warmth
-- Context: {occasion} (Weave in {occasion} themes like 'Birthday Cake' or 'Diwali Lights' but keep it a soft lullaby)
+- Context: {occasion} (Weave in {occasion} themes )
 - Rhythm: Slow, rocking lullaby style, melodic"""
 
     visual_style = "Soft lighting, dreamy, night time, stars, peaceful, cozy, magical glow, aesthetics"
