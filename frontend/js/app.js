@@ -389,15 +389,36 @@ async function createCheckoutSession() {
 
 async function loadSongsFromStorage() {
     try {
-        // Only fetch if logged in? Or public?
-        // If "everyone has their own account", they should only see their own songs.
-        // The API should handle filtering by user_id or email.
-        const response = await fetch('/api/songs');
-        if (!response.ok) return; // Silent fail if auth issue (401)
+        let songs = [];
 
-        const data = await response.json();
-        if (data.songs) {
-            state.songs = data.songs.map(s => ({
+        // 1. Try Supabase Direct (Leverages RLS + Auth Session)
+        if (supabaseClient) {
+            console.log("Fetching songs from Supabase...");
+            const { data, error } = await supabaseClient
+                .from('songs')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                songs = data;
+                console.log(`Found ${songs.length} songs in Supabase.`);
+            } else if (error) {
+                console.warn("Supabase Fetch Error:", error);
+            }
+        }
+
+        // 2. Fallback/Merge with Backend API (legacy/global)
+        if (songs.length === 0) {
+            console.log("Falling back to Backend API...");
+            const response = await fetch('/api/songs');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.songs) songs = data.songs;
+            }
+        }
+
+        if (songs) {
+            state.songs = songs.map(s => ({
                 id: s.song_id || s.id,
                 title: s.title,
                 babyName: s.babyName || s.baby_name,
