@@ -400,7 +400,8 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
     
     try:
         t_start_render = time.time()
-        final.write_videofile(temp_output, fps=24, codec='libx264', audio_codec='aac')
+        # Use more threads if available (matches the user's 8 CPU upgrade)
+        final.write_videofile(temp_output, fps=24, codec='libx264', audio_codec='aac', threads=8)
         log(f"✅ Video encoding complete. (Took {time.time() - t_start_render:.1f}s)")
         
         # Atomic rename to final path
