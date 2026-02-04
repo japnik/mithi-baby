@@ -538,6 +538,8 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         return song_id
 
 print(f"🚀 Serving at http://localhost:{PORT}")
+print(f"📂 BASE_DIR: {BASE_DIR}")
+print(f"📂 FRONTEND_DIR: {FRONTEND_DIR}")
 print(f"📝 Logging to {SESSION_FILE}")
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
