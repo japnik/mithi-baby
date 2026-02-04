@@ -20,18 +20,54 @@ DEFAULT_TOKEN = os.path.join(AUTH_DIR, "token.pickle")
 def get_authenticated_service(secrets_file=DEFAULT_SECRETS, token_file=DEFAULT_TOKEN):
     """
     Authenticate and return a YouTube service object.
-    Uses a pickle file to store credentials for subsequent runs.
+    Supports Base64 encoded credentials via environment variables for cloud environments.
     """
+    import base64
+    import tempfile
 
     creds = None
-    if os.path.exists(token_file):
+    env_token = os.getenv("YOUTUBE_TOKEN_B64")
+    env_secrets = os.getenv("YOUTUBE_SECRETS_B64")
+
+    # 1. Try Token from Env
+    if env_token:
+        try:
+            print("🔑 Using YouTube Token from environment variable")
+            token_data = base64.b64decode(env_token)
+            creds = pickle.loads(token_data)
+        except Exception as e:
+            print(f"⚠️ Failed to decode YOUTUBE_TOKEN_B64: {e}")
+
+    # 2. Try Token from File if not in Env
+    if not creds and os.path.exists(token_file):
         with open(token_file, 'rb') as token:
             creds = pickle.load(token)
     
-    # If there are no (valid) credentials available, let the user log in.
+    # 3. Handle expired credentials
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        # If we have a file path, update it locally. 
+        # In cloud (Env mode), we just keep it in memory.
+        if os.path.exists(token_file):
+            with open(token_file, 'wb') as token:
+                pickle.dump(creds, token)
+
+    # 4. Final Fallback/Initialization
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+        # If we have secrets in ENV, use a temporary file for the library
+        if env_secrets:
+            print("🔑 Using YouTube Secrets from environment variable")
+            with tempfile.NamedTemporaryFile(mode='wb', suffix='.json', delete=False) as tmp:
+                tmp.write(base64.b64decode(env_secrets))
+                tmp_secrets_path = tmp.name
+            
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(tmp_secrets_path, SCOPES)
+                creds = flow.run_local_server(port=0)
+                os.unlink(tmp_secrets_path) # Clean up
+            except Exception as e:
+                if os.path.exists(tmp_secrets_path): os.unlink(tmp_secrets_path)
+                raise e
         else:
             if not os.path.exists(secrets_file):
                 raise FileNotFoundError(f"Client secrets file not found at: {secrets_file}")
@@ -39,9 +75,10 @@ def get_authenticated_service(secrets_file=DEFAULT_SECRETS, token_file=DEFAULT_T
             flow = InstalledAppFlow.from_client_secrets_file(secrets_file, SCOPES)
             creds = flow.run_local_server(port=0)
             
-        # Save the credentials for the next run
-        with open(token_file, 'wb') as token:
-            pickle.dump(creds, token)
+        # For local use only: save the credentials for next run
+        if os.path.exists(os.path.dirname(token_file)):
+            with open(token_file, 'wb') as token:
+                pickle.dump(creds, token)
 
     return build('youtube', 'v3', credentials=creds)
 
