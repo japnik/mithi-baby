@@ -103,6 +103,8 @@ Give your child the gift of heritage with a song that features their very own na
 
 We are opening the doors very soon! Once we launch, you can generate a high-quality lori in seconds and have the option to share it on this YouTube channel with a single click to share with your family across the world.
 
+✨ Create your own personalized lori at: https://mithi.baby
+
 Join the Village: Subscribe for more personalized loris and traditional Punjabi & Hindi sleep music.
 
 #MithiBaby #{baby_name_tag} #PunjabiLori #HindiLullaby #PersonalizedBabySongs #DesiParenting #BabySleepMusic #NewbornCare #PunjabiLullaby"""
