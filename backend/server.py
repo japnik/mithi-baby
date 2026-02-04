@@ -383,9 +383,11 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 print(f"🔍 Debug: Received Promo Code: '{promo_code}'")
                 print(f"🔍 Debug: Expected Promo Code: '{test_promo}'")
                 
+                response_payload = {}
+                
+                # 1. Valid Promo Code
                 if promo_code.lower() == test_promo.lower():
                     print(f"🎟️ Valid Promo Code used: {promo_code}. Bypassing Stripe.")
-                    # Trigger generation directly
                     user_email = data.get('email')
                     baby_name = data.get('babyName', 'Baby')
                     
@@ -399,27 +401,23 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                         "autoYoutube": data.get('autoYoutube') is True or data.get('autoYoutube') == 'true'
                     })
                     
-                    # Send immediate "Queued" email
-                    if user_email:
-                        send_payment_success_email(user_email, baby_name)
-                    
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "payment_skipped", "song_id": song_id}).encode())
-                    return
+                    if user_email: send_payment_success_email(user_email, baby_name)
+                    response_payload = {"status": "payment_skipped", "song_id": song_id}
 
-                # Create Stripe Session
-                    # Determine callback URL dynamically (Localhost vs Cloud Run)
+                # 2. Invalid Promo Code (Explicit Rejection)
+                elif promo_code:
+                     print(f"🚫 Invalid Promo Code: {promo_code}")
+                     # Return separate status so frontend keeps modal open
+                     response_payload = {"status": "invalid_promo", "message": "Invalid Promo Code"}
+
+                # 3. Fallback to Stripe
+                else:
                     base_url = self.headers.get('Origin')
                     if not base_url:
                         base_url = self.headers.get('Referer')
-                        if base_url and base_url.endswith('/'):
-                            base_url = base_url[:-1]
-                    
-                    if not base_url:
-                        base_url = f"http://localhost:{PORT}" # Fallback
-                        
+                        if base_url and base_url.endswith('/'): base_url = base_url[:-1]
+                    if not base_url: base_url = f"http://localhost:{PORT}"
+
                     checkout_session = stripe.checkout.Session.create(
                         payment_method_types=['card'],
                         line_items=[{
@@ -429,34 +427,42 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                                     'name': 'Mithi Baby Personalized Song',
                                     'description': f"Personalized Lori for {data.get('babyName')} ({data.get('language')})",
                                 },
-                                'unit_amount': 100, # $1.00
+                                'unit_amount': 100, 
                             },
                             'quantity': 1,
                         }],
                         mode='payment',
-                        success_url=f"{base_url}/?session_id={{CHECKOUT_SESSION_ID}}", # Redirect back to frontend
+                        success_url=f"{base_url}/?session_id={{CHECKOUT_SESSION_ID}}",
                         cancel_url=f"{base_url}/",
-                    metadata={
-                        'babyName': data.get('babyName'),
-                        'language': data.get('language'),
-                        'characters': ",".join(data.get('characters', [])),
-                        'occasion': data.get('occasion', 'Lori'),
-                        'email': data.get('email'),
-                        'user_id': data.get('user_id'),
-                        'autoYoutube': str(data.get('autoYoutube', 'True'))
-                    }
-                )
-                
+                        metadata={
+                            'babyName': data.get('babyName'),
+                            'language': data.get('language'),
+                            'characters': ",".join(data.get('characters', [])),
+                            'occasion': data.get('occasion', 'Lori'),
+                            'email': data.get('email'),
+                            'user_id': data.get('user_id'),
+                            'autoYoutube': str(data.get('autoYoutube', 'True'))
+                        }
+                    )
+                    response_payload = {'id': checkout_session.id}
+
+                # --- Single Exit Point ---
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps({'id': checkout_session.id}).encode())
-                
+                self.wfile.write(json.dumps(response_payload).encode())
+
             except Exception as e:
-                print(f"Stripe Error: {e}")
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                # Safe Error Handling: Check if we can still send headers
+                import traceback
+                print(f"❌ Payment Logic Error: {traceback.format_exc()}")
+                try:
+                    self.send_response(500)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
+                except:
+                    print("⚠️ Critical: Could not send error response (headers likely already sent).")
 
         elif self.path == '/api/generate_song':
              # LEGACY/DEBUG Endpoint (Still works directly if desired, or disable)

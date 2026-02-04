@@ -308,6 +308,9 @@ function setupEventListeners() {
             const code = elements.promoCodeInput.value.trim();
             if (!code) return;
 
+            // Disable immediately to prevent double-clicks
+            elements.applyPromoBtn.disabled = true;
+
             // Improved feedback
             elements.promoStatus.style.display = 'block';
             elements.promoStatus.textContent = "✨ Validating heirloom token...";
@@ -318,13 +321,18 @@ function setupEventListeners() {
                 if (elements.confirmPaymentBtn) {
                     elements.confirmPaymentBtn.click();
                 }
+                // Re-enable in case it fails or modal stays open
+                setTimeout(() => {
+                    if (elements.applyPromoBtn) elements.applyPromoBtn.disabled = false;
+                }, 2000);
             }, 800);
         });
     }
 
     if (elements.confirmPaymentBtn) {
         elements.confirmPaymentBtn.addEventListener('click', () => {
-            elements.paymentModal.classList.add('hidden');
+            // Don't close immediately! Wait for result.
+            // elements.paymentModal.classList.add('hidden'); 
             createCheckoutSession();
         });
     }
@@ -381,6 +389,10 @@ async function handlePayAndCreateSong() {
 async function createCheckoutSession() {
     // 4. Initiate Checkout
     const btn = elements.createSongBtn;
+
+    // Guard Clause: Prevent double-submission
+    if (btn.disabled) return;
+
     const ogText = btn.textContent;
     btn.textContent = 'Preparing Payment...';
     btn.disabled = true;
@@ -416,6 +428,20 @@ async function createCheckoutSession() {
             // Reset button
             btn.textContent = ogText;
             btn.disabled = false;
+            return;
+        }
+
+        // Handle Invalid Promo Code (User stays on modal)
+        if (data.status === 'invalid_promo') {
+            if (elements.promoStatus) {
+                elements.promoStatus.style.display = 'block';
+                elements.promoStatus.textContent = "❌ Invalid Code. Try again or pay $1.00";
+                elements.promoStatus.style.color = "red";
+            }
+            // Reset buttons to allow retry
+            btn.textContent = ogText;
+            btn.disabled = false;
+            // The apply button has a timeout re-enable, but we can ensure it here if desired
             return;
         }
 
