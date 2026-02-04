@@ -239,7 +239,20 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
 
         else:
-            return super().do_GET()
+            # Check if this is a static file request
+            filepath = os.path.join(FRONTEND_DIR, self.path.lstrip('/'))
+            if not os.path.exists(filepath):
+                # Try relative to BASE_DIR/../frontend just in case
+                alt_path = os.path.join(BASE_DIR, "..", "frontend", self.path.lstrip('/'))
+                if os.path.exists(alt_path):
+                    filepath = alt_path
+            
+            if os.path.isfile(filepath):
+                # If it's a directory or missing, let super handle it (or 404)
+                return super().do_GET()
+            else:
+                print(f"⚠️ 404: {self.path} not found at {filepath}")
+                return super().do_GET()
 
     def do_POST(self):
         if self.path == '/api/log':

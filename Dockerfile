@@ -28,8 +28,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy the entire project
 COPY . .
 
-# Final check: Ensure logo exists in the expected location
-RUN ls -la /app/frontend/assets/logo.png
+# Final check: Ensure logo exists and set permissions
+RUN ls -R /app/frontend/assets
+RUN chmod -R 755 /app/frontend
 
 # Environment variables
 # PYTHONUNBUFFERED=1 ensures logs show up in Cloud Logging
