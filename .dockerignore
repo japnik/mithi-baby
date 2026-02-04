@@ -30,6 +30,7 @@ backend/api_logs/
 *.wav
 *.jpg
 *.png
+!frontend/assets/logo.png
 
 # OS
 .DS_Store
