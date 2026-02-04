@@ -42,3 +42,7 @@ backend/api_logs/
 *.mp3
 *.jpg
 *.png
+
+# Auth Secrets
+backend/auth/client_secrets.json
+backend/auth/token.pickle
