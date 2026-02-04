@@ -101,7 +101,7 @@ Give your child the gift of heritage with a song that features their very own na
 
 👩👧 From the Founder: "I created Mithi Baby so my daughter Liv could grow up hearing her name in the beautiful melodies of our culture. I want to create a digital village where our children’s names and our traditions live forever. I hope this song brings as much peace to your home as it does to ours." — Liv’s Mom, Founder of Mithi Baby
 
-You can generate a high-quality lori in seconds and have the option to share it on this YouTube channel with a single click to share with your family across the world.
+You can generate a high-quality lori in seconds and have the option to share it on this YouTube channel to share with your family across the world.
 
 ✨ Create your own personalized lori at: https://mithi.baby
 
