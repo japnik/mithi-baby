@@ -286,106 +286,99 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
         title_path = os.path.join(temp_dir, "title.png")
         subprocess.check_call([sys.executable, RENDER_SCRIPT, title, title_path, "--color", highlight_hex, "--fontsize", "70", "--width", "900", "--language", str(language)])
 
-        # 6. Compose Final Frame with Background
+        # 6. Pre-compose all possible Paragraph State Frames
+        # A state frame is the FULL background + title + cover + a specific paragraph with a specific highlight
         W, H = VIDEO_SIZE
-        base_frame = Image.new('RGBA', (W, H), bg_rgb + (255,))
+        base_frame_clean = Image.new('RGBA', (W, H), bg_rgb + (255,))
         
-        # Add Title
+        # Add Title and Cover once to base
         try:
             title_img = Image.open(title_path).convert("RGBA")
-            # Position title at top (100px from top)
             title_x = (W - title_img.width) // 2
-            base_frame.alpha_composite(title_img, (title_x, 100))
+            base_frame_clean.alpha_composite(title_img, (title_x, 100))
             title_img.close()
-        except Exception as e:
-            log(f"Warning: Could not add title image to base frame: {e}", type_="WARNING")
-
-        # Add Cover Image
-        try:
+            
             cover_img = Image.open(image_path).convert("RGBA")
-            # Resize cover to width=600 as per original logic
             aspect = cover_img.height / cover_img.width
             new_h = int(600 * aspect)
             cover_img = cover_img.resize((600, new_h), resample=Image.ANTIALIAS)
-            # Position cover at y=250
             cover_x = (W - 600) // 2
-            base_frame.alpha_composite(cover_img, (cover_x, 250))
+            base_frame_clean.alpha_composite(cover_img, (cover_x, 250))
             cover_img.close()
         except Exception as e:
-            log(f"Warning: Could not add cover image to base frame: {e}", type_="WARNING")
+            log(f"Warning: Base composition failed: {e}", type_="WARNING")
 
-        loaded_imgs = {}
-        def get_imgs(idx):
-            if idx not in loaded_imgs:
-                l = line_images[idx]
-                loaded_imgs[idx] = (Image.open(l['w']).convert("RGBA"), Image.open(l['g']).convert("RGBA"))
-            return loaded_imgs[idx]
+        # Cache of pre-rendered full frames (numpy arrays)
+        # Key: (para_tuple, highlight_idx)
+        frame_cache = {}
+        
+        log(f"🚀 Pre-calculating {len(paragraphs)} paragraph states...")
+        t_pre = time.time()
+        
+        # Neutral frame (just the base)
+        frame_cache[(-1, -1)] = np.array(base_frame_clean.convert("RGB"))
 
-        def make_frame(get_frame_t):
-            t = get_frame_t
+        for p_idx, para in enumerate(paragraphs):
+            # For each paragraph, we need N+1 states (N lines highlighted + 1 none)
+            states = para + [-1]
+            for h_idx in states:
+                frame_img = base_frame_clean.copy()
+                
+                # Layout: Center the visible paragraph block
+                total_h = sum([line_images[ali]['h'] for ali in para]) + (len(para)-1)*40
+                curr_y = (H - total_h) / 2 + 300 # Lower half offset
+                
+                for line_idx in para:
+                    # Select white or highlighted image
+                    img_key = 'g' if line_idx == h_idx else 'w'
+                    line_img_path = line_images[line_idx][img_key]
+                    
+                    with Image.open(line_img_path) as li:
+                        x_pos = (W - li.width) // 2
+                        frame_img.alpha_composite(li.convert("RGBA"), (x_pos, int(curr_y)))
+                        curr_y += line_images[line_idx]['h'] + 40
+                
+                # Convert to RGB numpy array for MoviePy
+                frame_cache[(p_idx, h_idx)] = np.array(frame_img.convert("RGB"))
+        
+        log(f"✅ Pre-calculation complete. Cached {len(frame_cache)} frames in {time.time() - t_pre:.1f}s")
+
+        def make_frame(t):
+            # 1. Find Active State
+            active_p_idx = -1
+            active_h_idx = -1
             
-            # 1. Find Active Line
-            active_idx = -1
+            # Find which line is currently highlighted
             for seg in timeline:
                 if seg['start'] <= t <= seg['end']: 
-                    active_idx = seg['line']
+                    active_h_idx = seg['line']
                     break
             
-            # 2. Find Active Paragraph
-            visible_lines = []
-            highlight_idx = active_idx # Can be -1
-            
-            found_para = False
-            
-            if active_idx != -1:
-                for para in paragraphs:
-                    if active_idx in para:
-                        visible_lines = para
-                        found_para = True
+            # Find the paragraph containing that line
+            if active_h_idx != -1:
+                for p_idx, para in enumerate(paragraphs):
+                    if active_h_idx in para:
+                        active_p_idx = p_idx
                         break
             
-            # State persistence: If drift/no-match, keep showing LAST matched paragraph
-            if not found_para:
-                # Find the last valid line before this time
+            # State fallback: If drift/no-match, show LAST matched paragraph (neutral)
+            if active_p_idx == -1:
                 last_idx = 0
                 for seg in timeline:
                     if seg['end'] < t and seg['line'] != -1:
                         last_idx = seg['line']
                 
-                # Show that paragraph
-                for para in paragraphs:
+                for p_idx, para in enumerate(paragraphs):
                     if last_idx in para:
-                        visible_lines = para
+                        active_p_idx = p_idx
                         break
-                
-                highlight_idx = -1 # No highlight during drift
+                active_h_idx = -1 # No highlight
 
-            # Start with the pre-composited base frame (bg + title + cover)
-            frame_img = base_frame.copy()
-            
-            # 3. Layout: Center the visible paragraph block
-            if visible_lines:
-                total_h = sum([line_images[ali]['h'] for ali in visible_lines]) + (len(visible_lines)-1)*40
-                start_y = (H - total_h) / 2 + 300 # Lower half offset
-                
-                curr_y = start_y
-                for idx in visible_lines:
-                    w_img, g_img = get_imgs(idx)
-                    src = g_img if idx == highlight_idx else w_img
-                    
-                    # Center horizontally
-                    x_pos = (W - w_img.width) // 2
-                    frame_img.alpha_composite(src, (x_pos, int(curr_y)))
-                    curr_y += line_images[idx]['h'] + 40
-                    
-            return np.array(frame_img.convert("RGB"))
+            # 2. Return cached frame
+            return frame_cache.get((active_p_idx, active_h_idx), frame_cache[(-1, -1)])
 
         text_clip = VideoClip(make_frame, duration=duration)
         audio = AudioFileClip(audio_path)
-        
-        if os.path.exists(output_path): os.remove(output_path)
-        
-        # Now it's a single combined clip
         final = text_clip.set_audio(audio)
 
     except Exception as e:
@@ -394,18 +387,18 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
         raise
     
     log(f"Rendering {output_path}...", data={"codec": "libx264", "fps": 24})
-    write_status(song_id, "processing", "Rendering video (this takes a while)...")
+    write_status(song_id, "processing", "Rendering video (Optimized Engine)...")
     temp_output = output_path + ".temp.mp4"
     if os.path.exists(temp_output): os.remove(temp_output)
     
     try:
         t_start_render = time.time()
         # Use more threads if available (matches the user's 8 CPU upgrade)
+        # fps=24 is standard. 
         final.write_videofile(temp_output, fps=24, codec='libx264', audio_codec='aac', threads=8)
         log(f"✅ Video encoding complete. (Took {time.time() - t_start_render:.1f}s)")
         
         # Atomic rename to final path
-        if os.path.exists(output_path): os.remove(output_path)
         if os.path.exists(output_path): os.remove(output_path)
         os.rename(temp_output, output_path)
         log("✅ Done (Atomic Rename)")
