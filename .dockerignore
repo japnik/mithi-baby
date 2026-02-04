@@ -1,6 +1,7 @@
 # Version Control
 .git/
 .gitignore
+.dockerignore
 
 # Python
 venv/
@@ -12,27 +13,34 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Environment Variables (CRITICAL: Do not bake secrets into image)
+# Environment Variables
 .env
 .env.*
 !.env.example
 backend/auth/client_secrets.json
 backend/auth/token.pickle
 
-# User Data & Large Media
+# User Data & Large Media (Explicitly target backend folders)
 backend/videos/
 backend/audios/
 backend/lyrics/
 backend/temp/
+backend/temp_gen_*/
 backend/api_logs/
-*.mp4
-*.mp3
-*.wav
-*.jpg
-*.png
-!frontend/assets/logo.png
 
-# OS
+# Avoid large media files generally
+**/*.mp4
+**/*.mp3
+**/*.wav
+**/*.jpg
+
+# Handle PNGs carefully:
+# Do NOT use a global *.png (it's too risky for our logo)
+# Instead, ignore pngs only where they are generated/large
+backend/**/*.png
+test_pil.png
+
+# OS & IDEs
 .DS_Store
 .vscode/
 .idea/
