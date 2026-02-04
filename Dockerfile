@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy the entire project
 COPY . .
 
+# Force-copy assets to ensure they bypass any potential .dockerignore issues
+COPY frontend/assets/ /app/frontend/assets/
+
 # Final check: Ensure logo exists and set permissions
 RUN ls -R /app/frontend/assets
 RUN chmod -R 755 /app/frontend
