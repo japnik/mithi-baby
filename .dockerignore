@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+.dockerignore
+.env
+node_modules
+venv
+.venv
+__pycache__
+.DS_Store
+.idea
+.vscode
+backend/api_logs
+backend/temp
+backend/videos
+backend/audios
+backend/lyrics

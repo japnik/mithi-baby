@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mithi.baby - Personalized Lullabies</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Unified Header -->
+        <nav class="navbar">
+            <div class="logo">
+                <img src="assets/logo.png" alt="Mithi Baby Logo" class="logo-img">
+                <p class="subtitle-main">Create Personalized Loris for your loved ones.</p>
+            </div>
+            <div class="auth-controls">
+                <button id="loginBtn" class="btn-primary">Login with Google</button>
+                <div id="userProfile" class="user-pill hidden">
+                    <div class="user-icon" id="userInitial"></div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span id="userEmail" class="user-name-label"></span>
+                        <span style="color: var(--logo-clay); font-size: 0.8rem; opacity: 0.3;">|</span>
+                        <a id="logoutBtn" class="logout-link">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Form -->
+        <div class="form-container">
+            <div class="form-card">
+                <!-- Name Input -->
+                <div class="form-section">
+                    <label class="form-label" for="babyName">Baby's Name</label>
+                    <input type="text" id="babyName" placeholder="Enter your baby's name" class="form-input">
+                </div>
+
+                <!-- Language Selection -->
+                <div class="form-section">
+                    <label class="form-label">Language</label>
+                    <div class="button-group">
+                        <button class="option-btn active" data-language="Punjabi">
+                            <span class="option-icon">🇮🇳</span>
+                            Punjabi
+                        </button>
+                        <button class="option-btn" data-language="Hindi">
+                            <span class="option-icon">🇮🇳</span>
+                            Hindi
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Characters Selection -->
+                <div class="form-section">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <label class="form-label" style="margin-bottom: 0;">Who to mention in the song?</label>
+                        <button id="selectAllCharacters" class="select-all-btn">Select All</button>
+                    </div>
+                    <div class="character-grid">
+                        <button class="character-btn selected sunrise-glow" data-character="Papa">
+                            <span class="character-icon">👨</span>
+                            <span class="character-name">Papa</span>
+                        </button>
+                        <button class="character-btn selected sunrise-glow" data-character="Mummy">
+                            <span class="character-icon">👩</span>
+                            <span class="character-name">Mummy</span>
+                        </button>
+                        <button class="character-btn" data-character="Dadu">
+                            <span class="character-icon">👴</span>
+                            <span class="character-name">Dadu</span>
+                        </button>
+                        <button class="character-btn" data-character="Dadi">
+                            <span class="character-icon">👵</span>
+                            <span class="character-name">Dadi</span>
+                        </button>
+                        <button class="character-btn" data-character="Nanu">
+                            <span class="character-icon">👴</span>
+                            <span class="character-name">Nanu</span>
+                        </button>
+                        <button class="character-btn" data-character="Nani">
+                            <span class="character-icon">👵</span>
+                            <span class="character-name">Nani</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Create Song Button -->
+                <button class="create-btn" id="createSongBtn">
+                    <span>Create Lori</span>
+                    <span class="btn-icon">✨</span>
+                </button>
+
+                <!-- Loading State (Digital Nursery Style) -->
+                <div class="loading-container hidden" id="loadingContainer">
+                    <div class="loading-icon">✨</div>
+                    <h3>Creating your magical song...</h3>
+                    <p>
+                        It takes about 10 minutes to write the lyrics, create the images, <br>
+                        generate the vocals, and assemble your video.
+                    </p>
+                    <div class="loading-email-notice">
+                        📩 we will email you once the song is created.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Song Library -->
+        <div class="library-container" id="libraryContainer">
+            <div class="library-header">
+                <h2 class="library-title">
+                    <span class="library-icon">📚</span>
+                    Your Song Library
+                </h2>
+            </div>
+            <div class="library-empty hidden" id="libraryEmpty">
+                <p class="empty-icon">🎵</p>
+                <p class="empty-text">No songs yet!</p>
+                <p class="empty-subtext">Create your first magical song above</p>
+            </div>
+            <div class="song-list" id="songList">
+                <!-- Songs will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- About Us Section -->
+        <div class="about-section">
+            <h3 class="about-header">From Our Family to Yours</h3>
+            <div class="about-content">
+                <p>
+                    Mithi Baby wasn’t built in a boardroom—it was built in a nursery. As a mother to 9-month-old Liv, I
+                    wanted my daughter to grow up surrounded by the same sweet Punjabi and Hindi melodies that my own
+                    mother sang to me. Living in the U.S., I realized how hard it is to find high-quality, soulful music
+                    that feels personal and honors our roots.
+                </p>
+                <p style="margin-top: 1rem;">
+                    I want to create a digital "Village" where our children’s names and our traditions live forever.
+                    This channel
+                    is a community library of those moments. When you use the Mithi Baby app to create a song for your
+                    little one,
+                    you can share it here with a single click, building a permanent digital Virasat (heritage) for your
+                    family and ours.
+                </p>
+                <div class="about-quote">
+                    — Navneet (Liv’s Mom), Founder of Mithi Baby
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal (Nicer Login Prompt) -->
+    <div class="modal hidden" id="authModal">
+        <div class="modal-content">
+            <button class="modal-close" id="closeAuthModal">&times;</button>
+            <div class="modal-body auth-modal-body">
+                <img src="assets/logo.png" alt="Mithi Baby Logo" class="modal-brand-logo">
+                <p>Login with Google to keep your baby's Lori safe and sound. We'll handle the boring
+                    stuff, you focus on the music!</p>
+                <button id="modalLoginBtn" class="btn-primary" style="width: 100%; margin-top: 1rem;">Login with
+                    Google</button>
+                <p style="font-size: 0.8rem; margin-top: 1rem; opacity: 0.6;">Your progress will be saved automatically.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Commitment Modal -->
+    <div class="modal hidden" id="paymentModal">
+        <div class="modal-content">
+            <button class="modal-close" id="closePaymentModal">&times;</button>
+            <div class="modal-body payment-modal-body">
+                <img src="assets/logo.png" alt="Mithi Baby Logo" class="modal-brand-logo">
+                <h2>A Tiny Token for a Big Tune</h2>
+                <p>
+                    It costs over $1 in AI compute to craft each unique song. This $1 token helps cover those costs and
+                    keeps Mithi Baby spam-free.
+                </p>
+                <button id="confirmPaymentBtn" class="btn-primary" style="width: 100%; margin-top: 1.5rem;">Secure
+                    Payment with Stripe ($1)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio/Video Player Modal -->
+    <div class="modal hidden" id="playerModal">
+        <div class="modal-content">
+            <button class="modal-close" id="closeModal">&times;</button>
+            <div class="modal-body player-modal-body">
+                <h3 class="player-title" id="playerTitle">Song Title</h3>
+                <video id="videoPlayer" class="video-player" controls autoplay playsinline>
+                    Your browser does not support the video tag.
+                </video>
+                <div class="player-info">
+                    <p class="player-meta" id="playerMeta"></p>
+                    <button class="download-btn" id="downloadBtn">
+                        <span>Download Video</span>
+                        <span>⬇️</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Song Details Modal -->
+    <div class="modal hidden" id="detailsModal">
+        <div class="modal-content details-modal-content">
+            <button class="modal-close" id="closeDetailsModal">&times;</button>
+            <div id="detailsContent" class="details-content">
+                <!-- Details will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Success / Processing Modal -->
+    <div class="modal hidden" id="successModal">
+        <div class="modal-content">
+            <button class="modal-close" id="closeSuccessModal">&times;</button>
+            <div class="modal-body success-modal-body">
+                <div class="success-icon">✨</div>
+                <h2>Magical Song Started!</h2>
+                <div class="success-message">
+                    <p>It takes about <strong>10 minutes</strong> to write the lyrics, create the images, generate the
+                        vocals, and assemble your video.</p>
+                    <p>📩 You'll receive an email as soon as it's ready.</p>
+                    <p>In the meantime, feel free to create another song!</p>
+                </div>
+                <button id="successCloseBtn" class="btn-primary" style="width: 100%; margin-top: 1.5rem;">Got
+                    it!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug/History Panel (Hidden by default) -->
+    <div id="debugPanel" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" id="closeDebugPanel">&times;</span>
+            <h2 style="margin-bottom: 20px;">📜 Lyrics History & Logs</h2>
+
+            <div class="debug-tabs">
+                <button class="tab-btn active" data-tab="lyrics">Lyrics History</button>
+                <button class="tab-btn" data-tab="logs">Debug Logs</button>
+            </div>
+
+            <div id="lyricsHistoryContent" class="tab-content active"
+                style="max-height: 400px; overflow-y: auto; margin-top: 15px;">
+                <!-- Lyrics history items will go here -->
+            </div>
+
+            <div id="logsContent" class="tab-content hidden"
+                style="max-height: 400px; overflow-y: auto; margin-top: 15px; background: #f5f5f5; padding: 10px; font-family: monospace; font-size: 12px;">
+                <!-- Logs will go here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/logger.js?v=10"></script>
+    <script src="js/gemini-api.js?v=10"></script>
+
+    <script src="js/suno-api.js?v=10"></script>
+    <script src="js/kie-image-api.js?v=10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js?v=13"></script>
+</body>
+
+</html>

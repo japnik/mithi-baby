@@ -1,0 +1,44 @@
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+
+# Node (Future proofing)
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# OS specific
+.DS_Store
+.idea/
+.vscode/
+
+# Project Data (Optional - usually we don't commit large video assets)
+# backend/videos/
+# backend/audios/
+# backend/temp/
+# backend/api_logs/
+
+# But if user WANTS to keep them, uncomment. 
+# Usually for a generated app handled by DB, we ignore them.
+backend/videos/
+backend/audios/
+backend/photos/
+backend/lyrics/
+backend/temp/
+backend/api_logs/
+*.mp4
+*.mp3
+*.jpg
+*.png
