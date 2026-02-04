@@ -46,11 +46,11 @@
                 <div class="form-section">
                     <label class="form-label">Language</label>
                     <div class="button-group">
-                        <button class="option-btn active" data-language="Punjabi">
+                        <button class="selectable-btn active" data-language="Punjabi">
                             <span class="option-icon">🇮🇳</span>
                             Punjabi
                         </button>
-                        <button class="option-btn" data-language="Hindi">
+                        <button class="selectable-btn" data-language="Hindi">
                             <span class="option-icon">🇮🇳</span>
                             Hindi
                         </button>
@@ -65,31 +65,40 @@
                         <button id="selectAllCharacters" class="select-all-btn">Select All</button>
                     </div>
                     <div class="character-grid">
-                        <button class="character-btn selected sunrise-glow" data-character="Papa">
+                        <button class="selectable-btn selected" data-character="Papa">
                             <span class="character-icon">👨</span>
                             <span class="character-name">Papa</span>
                         </button>
-                        <button class="character-btn selected sunrise-glow" data-character="Mummy">
+                        <button class="selectable-btn selected" data-character="Mummy">
                             <span class="character-icon">👩</span>
                             <span class="character-name">Mummy</span>
                         </button>
-                        <button class="character-btn" data-character="Dadu">
+                        <button class="selectable-btn" data-character="Dadu">
                             <span class="character-icon">👴</span>
                             <span class="character-name">Dadu</span>
                         </button>
-                        <button class="character-btn" data-character="Dadi">
+                        <button class="selectable-btn" data-character="Dadi">
                             <span class="character-icon">👵</span>
                             <span class="character-name">Dadi</span>
                         </button>
-                        <button class="character-btn" data-character="Nanu">
+                        <button class="selectable-btn" data-character="Nanu">
                             <span class="character-icon">👴</span>
                             <span class="character-name">Nanu</span>
                         </button>
-                        <button class="character-btn" data-character="Nani">
+                        <button class="selectable-btn" data-character="Nani">
                             <span class="character-icon">👵</span>
                             <span class="character-name">Nani</span>
                         </button>
                     </div>
+                </div>
+
+                <!-- YouTube Upload Opt-in -->
+                <div class="form-section youtube-opt-in">
+                    <label class="premium-toggle">
+                        <input type="checkbox" id="autoYoutube" checked>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Upload to Mithi Baby Youtube channel for easy sharing</span>
+                    </label>
                 </div>
 
                 <!-- Create Song Button -->
@@ -117,7 +126,7 @@
         <div class="library-container" id="libraryContainer">
             <div class="library-header">
                 <h2 class="library-title">
-                    <span class="library-icon">📚</span>
+                    <span class="bob-music">🎵</span>
                     Your Song Library
                 </h2>
             </div>
@@ -183,6 +192,18 @@
                     It costs over $1 in AI compute to craft each unique song. This $1 token helps cover those costs and
                     keeps Mithi Baby spam-free.
                 </p>
+                <!-- Promo Code Section (Premium Token Style) -->
+                <div class="promo-code-container"
+                    style="margin-top: 1.5rem; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 1.2rem;">
+                    <p class="promo-label">Have a heirloom token?</p>
+                    <div class="token-input-wrapper">
+                        <span class="token-icon">🎟️</span>
+                        <input type="text" id="promoCodeInput" placeholder="Enter code" class="token-input">
+                        <button id="applyPromoBtn" class="token-apply-btn">Apply</button>
+                    </div>
+                    <p id="promoStatus" class="promo-status-text"></p>
+                </div>
+
                 <button id="confirmPaymentBtn" class="btn-primary" style="width: 100%; margin-top: 1.5rem;">Secure
                     Payment with Stripe ($1)</button>
             </div>

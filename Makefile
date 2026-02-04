@@ -6,8 +6,7 @@ install:
 	pip install -r backend/requirements.txt
 
 start:
-	@echo "Starting backend server..."
-	python3 backend/server.py
+	@./run_server.sh
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

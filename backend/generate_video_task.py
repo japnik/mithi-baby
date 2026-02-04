@@ -7,8 +7,15 @@ import sys
 import time
 import datetime
 import argparse
-from moviepy import AudioFileClip, VideoClip, CompositeVideoClip, ImageClip, ColorClip
-from PIL import Image, ImageStat
+import platform
+from PIL import Image, ImageDraw, ImageFont, ImageStat
+
+# Monkey-patch ANTIALIAS for MoviePy/Pillow 10+ compatibility
+if not hasattr(Image, 'ANTIALIAS'):
+    # Use LANCZOS as replacement (highest quality downsampling)
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
+from moviepy.editor import AudioFileClip, VideoClip, CompositeVideoClip, ImageClip, ColorClip
 import numpy as np
 
 # Config Defaults (Can be overridden by args)
@@ -46,7 +53,9 @@ def write_status(song_id, status, message, video_url=None, error=None):
 def get_theme_colors(image_path):
     try:
         img = Image.open(image_path)
-        img_small = img.resize((150, 150))
+        # Pillow 10 compatibility
+        resample_method = getattr(Image.Resampling, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC))
+        img_small = img.resize((150, 150), resample=resample_method)
         result = img_small.quantize(colors=10)
         palette = result.getpalette()
         
@@ -249,7 +258,14 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
     temp_dir = f"temp_gen_{song_id}"
     if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
-    RENDER_SCRIPT = os.path.join("utils", "render_line_coretext.py")
+    
+    # Select renderer based on Platform
+    if platform.system() == "Darwin":
+        RENDER_SCRIPT = os.path.join("utils", "render_line_coretext.py")
+        log("🖥️ Using macOS CoreText renderer")
+    else:
+        RENDER_SCRIPT = os.path.join("utils", "render_line_pil.py")
+        log("🐧 Using Linux/Pillow renderer")
     
     line_images = []
     
@@ -266,93 +282,116 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
         line_images.append({'w': w_path, 'g': g_path, 'h': h})
     log(f"✅ Line rendering complete. (Took {time.time() - t_start_lines:.1f}s)")
         
-    title_path = os.path.join(temp_dir, "title.png")
-    subprocess.check_call([sys.executable, RENDER_SCRIPT, title, title_path, "--color", highlight_hex, "--fontsize", "70", "--width", "900", "--language", str(language)])
+    try:
+        title_path = os.path.join(temp_dir, "title.png")
+        subprocess.check_call([sys.executable, RENDER_SCRIPT, title, title_path, "--color", highlight_hex, "--fontsize", "70", "--width", "900", "--language", str(language)])
 
-    loaded_imgs = {}
-    def get_imgs(idx):
-        if idx not in loaded_imgs:
-            l = line_images[idx]
-            loaded_imgs[idx] = (Image.open(l['w']).convert("RGBA"), Image.open(l['g']).convert("RGBA"))
-        return loaded_imgs[idx]
-
-    def make_frame(get_frame_t):
-        t = get_frame_t
-        
-        # 1. Find Active Line
-        active_idx = -1
-        for seg in timeline:
-            if seg['start'] <= t <= seg['end']: 
-                active_idx = seg['line']
-                break
-        
-        # 2. Find Active Paragraph
-        visible_lines = []
-        highlight_idx = active_idx # Can be -1
-        
-        found_para = False
-        
-        if active_idx != -1:
-            for para in paragraphs:
-                if active_idx in para:
-                    visible_lines = para
-                    found_para = True
-                    break
-        
-        # State persistence: If drift/no-match, keep showing LAST matched paragraph
-        if not found_para:
-            # Find the last valid line before this time
-            last_idx = 0
-            for seg in timeline:
-                if seg['end'] < t and seg['line'] != -1:
-                    last_idx = seg['line']
-            
-            # Show that paragraph
-            for para in paragraphs:
-                if last_idx in para:
-                    visible_lines = para
-                    break
-            
-            highlight_idx = -1 # No highlight during drift
-
+        # 6. Compose Final Frame with Background
         W, H = VIDEO_SIZE
-        frame_img = Image.new('RGBA', (W, H), (0,0,0,0))
+        base_frame = Image.new('RGBA', (W, H), bg_rgb + (255,))
         
-        # 3. Layout: Center the visible paragraph block
-        if visible_lines:
-            total_h = sum([line_images[ali]['h'] for ali in visible_lines]) + (len(visible_lines)-1)*40
-            start_y = (H - total_h) / 2 + 300 # Lower half offset
-            
-            curr_y = start_y
-            for idx in visible_lines:
-                w_img, g_img = get_imgs(idx)
-                src = g_img if idx == highlight_idx else w_img
-                
-                # Center horizontally
-                x_pos = (W - w_img.width) // 2
-                frame_img.alpha_composite(src, (x_pos, int(curr_y)))
-                curr_y += line_images[idx]['h'] + 40
-                
-        return np.array(frame_img)
+        # Add Title
+        try:
+            title_img = Image.open(title_path).convert("RGBA")
+            # Position title at top (100px from top)
+            title_x = (W - title_img.width) // 2
+            base_frame.alpha_composite(title_img, (title_x, 100))
+            title_img.close()
+        except Exception as e:
+            log(f"Warning: Could not add title image to base frame: {e}", type_="WARNING")
 
-    text_clip = VideoClip(make_frame, duration=duration)
-    audio = AudioFileClip(audio_path)
-    
-    if os.path.exists(output_path): os.remove(output_path)
-    
-    bg = ColorClip(size=VIDEO_SIZE, color=bg_rgb, duration=duration)
-    
-    title_clip = (ImageClip(title_path)
-                  .with_position(('center', 100))
-                  .with_duration(duration))
-                  
-    cover = (ImageClip(image_path)
-             .resized(width=600)
-             .with_position(('center', 250))
-             .with_duration(duration))
-     
-    # Text clip sits on top. Position is handled inside make_frame relative to full canvas
-    final = CompositeVideoClip([bg, title_clip, cover, text_clip], size=VIDEO_SIZE).with_audio(audio)
+        # Add Cover Image
+        try:
+            cover_img = Image.open(image_path).convert("RGBA")
+            # Resize cover to width=600 as per original logic
+            aspect = cover_img.height / cover_img.width
+            new_h = int(600 * aspect)
+            cover_img = cover_img.resize((600, new_h), resample=Image.ANTIALIAS)
+            # Position cover at y=250
+            cover_x = (W - 600) // 2
+            base_frame.alpha_composite(cover_img, (cover_x, 250))
+            cover_img.close()
+        except Exception as e:
+            log(f"Warning: Could not add cover image to base frame: {e}", type_="WARNING")
+
+        loaded_imgs = {}
+        def get_imgs(idx):
+            if idx not in loaded_imgs:
+                l = line_images[idx]
+                loaded_imgs[idx] = (Image.open(l['w']).convert("RGBA"), Image.open(l['g']).convert("RGBA"))
+            return loaded_imgs[idx]
+
+        def make_frame(get_frame_t):
+            t = get_frame_t
+            
+            # 1. Find Active Line
+            active_idx = -1
+            for seg in timeline:
+                if seg['start'] <= t <= seg['end']: 
+                    active_idx = seg['line']
+                    break
+            
+            # 2. Find Active Paragraph
+            visible_lines = []
+            highlight_idx = active_idx # Can be -1
+            
+            found_para = False
+            
+            if active_idx != -1:
+                for para in paragraphs:
+                    if active_idx in para:
+                        visible_lines = para
+                        found_para = True
+                        break
+            
+            # State persistence: If drift/no-match, keep showing LAST matched paragraph
+            if not found_para:
+                # Find the last valid line before this time
+                last_idx = 0
+                for seg in timeline:
+                    if seg['end'] < t and seg['line'] != -1:
+                        last_idx = seg['line']
+                
+                # Show that paragraph
+                for para in paragraphs:
+                    if last_idx in para:
+                        visible_lines = para
+                        break
+                
+                highlight_idx = -1 # No highlight during drift
+
+            # Start with the pre-composited base frame (bg + title + cover)
+            frame_img = base_frame.copy()
+            
+            # 3. Layout: Center the visible paragraph block
+            if visible_lines:
+                total_h = sum([line_images[ali]['h'] for ali in visible_lines]) + (len(visible_lines)-1)*40
+                start_y = (H - total_h) / 2 + 300 # Lower half offset
+                
+                curr_y = start_y
+                for idx in visible_lines:
+                    w_img, g_img = get_imgs(idx)
+                    src = g_img if idx == highlight_idx else w_img
+                    
+                    # Center horizontally
+                    x_pos = (W - w_img.width) // 2
+                    frame_img.alpha_composite(src, (x_pos, int(curr_y)))
+                    curr_y += line_images[idx]['h'] + 40
+                    
+            return np.array(frame_img.convert("RGB"))
+
+        text_clip = VideoClip(make_frame, duration=duration)
+        audio = AudioFileClip(audio_path)
+        
+        if os.path.exists(output_path): os.remove(output_path)
+        
+        # Now it's a single combined clip
+        final = text_clip.set_audio(audio)
+
+    except Exception as e:
+        log(f"❌ Composition setup failed: {e}", type_="ERROR")
+        write_status(song_id, "failed", "Composition setup failed", error=e)
+        raise
     
     log(f"Rendering {output_path}...", data={"codec": "libx264", "fps": 24})
     write_status(song_id, "processing", "Rendering video (this takes a while)...")

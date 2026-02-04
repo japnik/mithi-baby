@@ -11,11 +11,18 @@ from googleapiclient.http import MediaFileUpload
 # Scopes required for uploading
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 
-def get_authenticated_service(secrets_file='api/client_secrets.json', token_file='api/token.pickle'):
+# Default paths relative to this file's directory
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+AUTH_DIR = os.path.join(os.path.dirname(BASE_PATH), "auth")
+DEFAULT_SECRETS = os.path.join(AUTH_DIR, "client_secrets.json")
+DEFAULT_TOKEN = os.path.join(AUTH_DIR, "token.pickle")
+
+def get_authenticated_service(secrets_file=DEFAULT_SECRETS, token_file=DEFAULT_TOKEN):
     """
     Authenticate and return a YouTube service object.
     Uses a pickle file to store credentials for subsequent runs.
     """
+
     creds = None
     if os.path.exists(token_file):
         with open(token_file, 'rb') as token:
@@ -65,9 +72,9 @@ Join the Village: Subscribe for more personalized loris and traditional Punjabi 
 
     return template
 
-def upload_video(file_path, title, description, privacy_status='private', secrets_file='api/client_secrets.json', token_file='api/token.pickle'):
+def upload_video(file_path, title, description, privacy_status='public', secrets_file=DEFAULT_SECRETS, token_file=DEFAULT_TOKEN):
     """
-    Uploads a video to YouTube.
+    Standard upload function.
     """
     try:
         youtube = get_authenticated_service(secrets_file, token_file)
@@ -81,12 +88,11 @@ def upload_video(file_path, title, description, privacy_status='private', secret
             },
             'status': {
                 'privacyStatus': privacy_status,
-                'madeForKids': True, # Explicitly requested
+                'madeForKids': True, 
                 'selfDeclaredMadeForKids': True
             }
         }
 
-        # MediaFileUpload
         media = MediaFileUpload(file_path, chunksize=-1, resumable=True)
 
         request = youtube.videos().insert(
@@ -107,6 +113,43 @@ def upload_video(file_path, title, description, privacy_status='private', secret
     except Exception as e:
         print(f"An error occurred: {e}")
         return {"status": "error", "message": str(e)}
+
+def upload_to_youtube(video_path, ai_title, lyrics_text, baby_name=None, language="Punjabi", occasion="Lori", characters=None):
+    """
+    Branded wrapper used by both server and process_song.
+    Format: [Name] — Personalized [Lang] [Occasion] ft. [Chars] ([Month Year]) | Mithi Baby
+    """
+    occ = occasion if (occasion and occasion != 'SpecialSong') else 'Lori'
+    clean_name = baby_name or "Baby"
+    
+    # Format characters: "Mummy, Papa" -> "Mummy & Papa"
+    char_str = ""
+    if characters:
+        if isinstance(characters, str):
+            char_list = [c.strip() for c in characters.split(',') if c.strip()]
+        else:
+            char_list = characters
+            
+        if char_list:
+            if len(char_list) > 1:
+                char_str = f" ft. {', '.join(char_list[:-1])} & {char_list[-1]}"
+            else:
+                char_str = f" ft. {char_list[0]}"
+
+    # Milestone suffix (Month Year)
+    milestone = datetime.datetime.now().strftime("%b %Y")
+    
+    display_title = f"{clean_name} — Personalized {language} {occ}{char_str} ({milestone}) | Mithi Baby"
+
+    
+    # Cap title length at 100 for YT
+    if len(display_title) > 100:
+        display_title = display_title[:97] + "..."
+
+    description = generate_description(clean_name, lyrics_text, language=language, occasion=occ)
+    
+    return upload_video(video_path, display_title, description, privacy_status='public')
+
 
 if __name__ == '__main__':
     # Test run

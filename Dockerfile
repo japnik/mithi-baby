@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     imagemagick \
     fonts-liberation \
+    fonts-noto \
+    fonts-lohit-deva \
+    fonts-lohit-guru \
     && rm -rf /var/lib/apt/lists/*
 
 # Fix ImageMagick policy to allow text rendering (common MoviePy issue)

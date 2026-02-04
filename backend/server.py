@@ -9,6 +9,7 @@ import sys
 import uuid
 from supabase import create_client, Client
 import stripe
+from utils.notifier import send_completion_email, send_payment_success_email
 from dotenv import load_dotenv
 
 # Load env vars
@@ -22,12 +23,17 @@ STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY")
 # --- Config & Supabase Setup ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
 
 supabase: Client = None
-if SUPABASE_URL and SUPABASE_KEY:
+if SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY):
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("✅ Supabase client initialized in Server")
+        # Prioritize Service Role Key for backend operations
+        key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
+        supabase = create_client(SUPABASE_URL, key)
+        print(f"✅ Supabase client initialized in Server ({'Service Role' if SUPABASE_SERVICE_ROLE_KEY else 'Anon'} Key)")
+
     except Exception as e:
         print(f"⚠️ Supabase Init Error: {e}")
 
@@ -207,8 +213,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                     "characters": meta.get('characters', '').split(','),
                     "occasion": meta.get('occasion'),
                     "user_email": user_email,
-                    "user_id": meta.get('user_id')
+                    "user_id": meta.get('user_id'),
+                    "autoYoutube": meta.get('autoYoutube') == 'true' or meta.get('autoYoutube') == 'True'
                 })
+                
+                # Send "Queued" email
+                if user_email:
+                    send_payment_success_email(user_email, meta.get('babyName'))
                 
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
@@ -298,36 +309,17 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 
                 lyrics_text = "\n\n".join(formatted_lyrics)
 
-                # Generate Description
-                desc = youtube_upload.generate_description(
-                    baby_name=data.get('babyName', 'Baby'),
-                    lyrics_text=lyrics_text,
-                    language=data.get('language', 'Punjabi'),
-                    occasion=data.get('occasion', 'Lori')
+                # Perform branded upload
+                result = youtube_upload.upload_to_youtube(
+                    video_path,
+                    lyrics_title,
+                    lyrics_text,
+                    baby_name=data.get('babyName'),
+                    language=data.get('language'),
+                    occasion=data.get('occasion'),
+                    characters=data.get('characters')
                 )
-                
-                # Generate Title - Ensure "SpecialSong" is replaced with occasion
-                occ = data.get('occasion', 'Lori')
-                if not occ or occ == 'SpecialSong': occ = 'Lori'
-                title = f"{data.get('babyName')} — Personalized {data.get('language')} {occ} | Mithi Baby"
-                
-                print(f"Uploading {title}...")
-                
-                # Auth paths
-                # Auth paths - BASE_DIR is already /.../mylori/backend
-                secrets_file = os.path.join(BASE_DIR, "auth", "client_secrets.json")
-                token_file = os.path.join(BASE_DIR, "auth", "token.pickle")
-                
-                print(f"DEBUG: Using secrets: {secrets_file}")
-                # Perform upload (now public)
-                result = youtube_upload.upload_video(
-                    video_path, 
-                    title, 
-                    desc, 
-                    privacy_status='public',
-                    secrets_file=secrets_file,
-                    token_file=token_file
-                )
+
                 
                 # If success, update Supabase so it's tracked
                 if result.get('status') == 'success' and supabase:
@@ -358,6 +350,39 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 
+                # Check for Promo Code (Free Testing)
+                promo_code = data.get('promoCode', '').strip()
+                test_promo = os.getenv("TEST_PROMO_CODE", "LivMithiFree")
+                
+                print(f"🔍 Debug: Received Promo Code: '{promo_code}'")
+                print(f"🔍 Debug: Expected Promo Code: '{test_promo}'")
+                
+                if promo_code.lower() == test_promo.lower():
+                    print(f"🎟️ Valid Promo Code used: {promo_code}. Bypassing Stripe.")
+                    # Trigger generation directly
+                    user_email = data.get('email')
+                    baby_name = data.get('babyName', 'Baby')
+                    
+                    song_id = self.trigger_generation_process({
+                        "babyName": baby_name,
+                        "language": data.get('language'),
+                        "characters": data.get('characters', []),
+                        "occasion": data.get('occasion'),
+                        "user_email": user_email,
+                        "user_id": data.get('user_id'),
+                        "autoYoutube": data.get('autoYoutube') is True or data.get('autoYoutube') == 'true'
+                    })
+                    
+                    # Send immediate "Queued" email
+                    if user_email:
+                        send_payment_success_email(user_email, baby_name)
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "payment_skipped", "song_id": song_id}).encode())
+                    return
+
                 # Create Stripe Session
                     # Determine callback URL dynamically (Localhost vs Cloud Run)
                     base_url = self.headers.get('Origin')
@@ -389,9 +414,10 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                         'babyName': data.get('babyName'),
                         'language': data.get('language'),
                         'characters': ",".join(data.get('characters', [])),
-                        'occasion': data.get('occasion'),
+                        'occasion': data.get('occasion', 'Lori'),
                         'email': data.get('email'),
-                        'user_id': data.get('user_id')
+                        'user_id': data.get('user_id'),
+                        'autoYoutube': str(data.get('autoYoutube', 'True'))
                     }
                 )
                 
@@ -488,6 +514,9 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         
         if data.get('user_email'):
             cmd.extend(["--user_email", data.get('user_email')])
+        
+        if data.get('autoYoutube'):
+            cmd.append("--auto_youtube")
         # We can store it in env or passed as arg if we update process_song.
         # For now, we just launch it.
         

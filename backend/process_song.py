@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # Check for utils
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import utils
-from utils import notifier
+from utils import notifier, youtube_upload
 
 # Load env
 load_dotenv()
@@ -25,20 +25,25 @@ SUNO_API_KEY = os.getenv("SUNO_API_KEY")
 SUNO_BASE_URL = os.getenv("SUNO_BASE_URL")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
 
 supabase: Client = None
 
 def get_supabase_client():
     """Lazy initialization of Supabase client to avoid blocking at module load"""
     global supabase
-    if supabase is None and SUPABASE_URL and SUPABASE_KEY:
+    # Use Service Role Key for backend operations (to bypass RLS)
+    key_to_use = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
+    if supabase is None and SUPABASE_URL and key_to_use:
         try:
-            print("Initializing Supabase client...")
-            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            print(f"Initializing Supabase client (using {'Service Role' if SUPABASE_SERVICE_ROLE_KEY else 'Anon'} key)...")
+            supabase = create_client(SUPABASE_URL, key_to_use)
             print("✅ Supabase client initialized")
         except Exception as e:
             print(f"⚠️  Supabase Init Error: {e}")
             print("Continuing without Supabase...")
+
     return supabase
 
 STATUS_DIR = "videos"
@@ -380,6 +385,7 @@ def main():
     parser.add_argument("--log_file", help="Path to log file")
     parser.add_argument("--user_id", help="Supabase User ID", default=None)
     parser.add_argument("--user_email", help="User Email for notification", default=None)
+    parser.add_argument("--auto_youtube", action="store_true", help="Auto upload to YouTube")
     
     args = parser.parse_args()
     
@@ -550,11 +556,52 @@ def main():
                 
                 sb_client.table("songs").upsert(db_payload).execute()
                 log("✅ Saved to Supabase Database!")
-                
+
                 # Update status file with CLOUD URL
                 write_status(song_id, "completed", "Video generated & Saved to Cloud!", data={"video_url": s_video_url})
                 
-                # Cleanup Temp Files
+                
+                # 6. Optional YouTube Upload
+                youtube_url = None
+                if args.auto_youtube:
+                    log("🎥 Auto-upload to YouTube enabled. Waiting 4 seconds...")
+                    time.sleep(4)
+                    try:
+                        yt_result = youtube_upload.upload_to_youtube(
+                            video_path, 
+                            lyrics_data['title'], 
+                            lyrics_data['lyrics'],
+                            baby_name=args.baby_name,
+                            language=args.language,
+                            occasion=args.occasion,
+                            characters=args.characters
+                        )
+                        if yt_result and yt_result.get('status') == 'success':
+                            youtube_url = yt_result['video_url']
+                            log(f"✅ YouTube Upload Success: {youtube_url}")
+
+                    except Exception as yt_err:
+                        log(f"YouTube Upload Error: {yt_err}", type_="WARNING")
+
+                # 7. Notify User via Email (with 3-minute delay)
+                if args.user_email:
+                    log("⏳ Waiting 3 minutes before sending final notification...")
+                    time.sleep(180) # 3 minutes
+                    
+                    log(f"📧 Sending completion email to {args.user_email}...")
+                    success = notifier.send_completion_email(
+                        user_email=args.user_email,
+                        baby_name=args.baby_name,
+                        song_title=lyrics_data['title'],
+                        video_url=s_video_url,
+                        youtube_url=youtube_url
+                    )
+                    if success:
+                        log(f"✅ Email sent successfully to {args.user_email}")
+                    else:
+                        log(f"❌ Failed to send email to {args.user_email}", type_="ERROR")
+
+                # Cleanup Temp Files (Moved to end)
                 log("🧹 Cleaning up temp files...")
                 for p in [audio_path, image_path, video_path, lyrics_path]:
                     if os.path.exists(p):
@@ -562,25 +609,9 @@ def main():
                             os.remove(p)
                             log(f"Deleted {p}")
                         except: pass
-                
-                # 6. Notify User via Email
-                if args.user_email:
-                    log(f"📧 Sending completion email to {args.user_email}...")
-                    success = notifier.send_completion_email(
-                        user_email=args.user_email,
-                        baby_name=args.baby_name,
-                        song_title=lyrics_data['title'],
-                        video_url=s_video_url
-                    )
-                    if success:
-                        log(f"✅ Email sent successfully to {args.user_email}")
-                    else:
-                        log(f"❌ Failed to send email to {args.user_email}", type_="ERROR")
-                
-            except Exception as db_e:
-                log(f"❌ Supabase Error: {db_e}", type_="ERROR")
-            
-            
+            except Exception as sb_ex:
+                log(f"❌ Supabase Error: {sb_ex}", type_="ERROR")
+
     except Exception as e:
         import traceback
         traceback.print_exc()

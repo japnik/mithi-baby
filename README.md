@@ -2,6 +2,16 @@
 
 ## Quick Start
 
+### 🚀 Recommended Method (Auto-Fix)
+The easiest way to run the server without Python errors is:
+
+```bash
+./run_server.sh
+```
+*(This automatically creates a safe environment and installs everything for you)*
+
+### Manual Method
+
 1. **Add your Gemini API Key**
    - Open `api/config.json`
    - Replace `YOUR_GEMINI_API_KEY_HERE` with your actual Gemini API key

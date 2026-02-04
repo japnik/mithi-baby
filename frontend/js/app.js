@@ -19,7 +19,7 @@ const state = {
     language: 'Punjabi',
     babyName: '',
     characters: ['Papa', 'Mummy'],
-    occasion: 'Special Song', // Default since UI removed it
+    occasion: 'Lori', // Default since UI removed it
     user: null,
     songs: []
 };
@@ -36,6 +36,7 @@ const elements = {
     characterBtns: document.querySelectorAll('[data-character]'),
     selectAllCharacters: document.getElementById('selectAllCharacters'),
     createSongBtn: document.getElementById('createSongBtn'),
+    autoYoutube: document.getElementById('autoYoutube'),
 
     // Loading/Progress
     loadingContainer: document.getElementById('loadingContainer'),
@@ -72,7 +73,12 @@ const elements = {
     // Success Modal
     successModal: document.getElementById('successModal'),
     closeSuccessModal: document.getElementById('closeSuccessModal'),
-    successCloseBtn: document.getElementById('successCloseBtn')
+    successCloseBtn: document.getElementById('successCloseBtn'),
+
+    // Promo Code
+    promoCodeInput: document.getElementById('promoCodeInput'),
+    applyPromoBtn: document.getElementById('applyPromoBtn'),
+    promoStatus: document.getElementById('promoStatus')
 };
 
 // --- Helpers ---
@@ -82,6 +88,7 @@ function saveFormState(intent = null) {
         language: state.language,
         characters: state.characters,
         occasion: state.occasion,
+        autoYoutube: elements.autoYoutube ? elements.autoYoutube.checked : true,
         intent: intent // e.g., 'showPayment'
     };
     localStorage.setItem('mithi_baby_form_state', JSON.stringify(data));
@@ -112,22 +119,26 @@ function loadFormState() {
             state.babyName = data.babyName || '';
             state.language = data.language || 'Punjabi';
             state.characters = data.characters || [];
-            state.occasion = data.occasion || 'Special Song';
+            state.occasion = data.occasion || 'Lori';
+
+            // Migration: If the stored occasion is "Special Song", migrate it to "Lori"
+            if (state.occasion === 'Special Song') {
+                state.occasion = 'Lori';
+                saveFormState();
+            }
 
             // Update UI
             if (elements.babyNameInput) elements.babyNameInput.value = state.babyName;
 
             elements.languageBtns.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.language === state.language);
-                btn.classList.toggle('sunrise-glow', btn.dataset.language === state.language);
             });
 
-            // Sync UI for ALL buttons based on state (not just loading from storage)
+            // Sync UI for ALL buttons based on state
             elements.characterBtns.forEach(btn => {
                 const char = btn.dataset.character;
                 const isSelected = state.characters.includes(char);
                 btn.classList.toggle('selected', isSelected);
-                btn.classList.toggle('sunrise-glow', isSelected);
             });
         } catch (e) {
             console.error('Failed to load form state:', e);
@@ -142,8 +153,14 @@ function resetForm() {
     elements.characterBtns.forEach(btn => {
         const isDefault = state.characters.includes(btn.dataset.character);
         btn.classList.toggle('selected', isDefault);
-        btn.classList.toggle('sunrise-glow', isDefault);
     });
+
+    // Clear Promo Code
+    if (elements.promoCodeInput) elements.promoCodeInput.value = '';
+    if (elements.promoStatus) {
+        elements.promoStatus.textContent = '';
+        elements.promoStatus.style.display = 'none';
+    }
 }
 
 // --- Authentication ---
@@ -203,8 +220,8 @@ function setupEventListeners() {
     // Language
     elements.languageBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            elements.languageBtns.forEach(b => b.classList.remove('active', 'sunrise-glow'));
-            btn.classList.add('active', 'sunrise-glow');
+            elements.languageBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
             state.language = btn.dataset.language;
 
             // Temporary bounce effect
@@ -222,7 +239,6 @@ function setupEventListeners() {
     elements.characterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             btn.classList.toggle('selected');
-            btn.classList.toggle('sunrise-glow', btn.classList.contains('selected'));
             const char = btn.dataset.character;
 
             if (btn.classList.contains('selected')) {
@@ -287,6 +303,25 @@ function setupEventListeners() {
     }
 
     // Payment Modal
+    if (elements.applyPromoBtn) {
+        elements.applyPromoBtn.addEventListener('click', () => {
+            const code = elements.promoCodeInput.value.trim();
+            if (!code) return;
+
+            // Improved feedback
+            elements.promoStatus.style.display = 'block';
+            elements.promoStatus.textContent = "✨ Validating heirloom token...";
+            elements.promoStatus.style.color = "var(--primary)";
+
+            // Subtle delay for "premium" feel
+            setTimeout(() => {
+                if (elements.confirmPaymentBtn) {
+                    elements.confirmPaymentBtn.click();
+                }
+            }, 800);
+        });
+    }
+
     if (elements.confirmPaymentBtn) {
         elements.confirmPaymentBtn.addEventListener('click', () => {
             elements.paymentModal.classList.add('hidden');
@@ -295,14 +330,11 @@ function setupEventListeners() {
     }
     if (elements.closePaymentModal) {
         elements.closePaymentModal.addEventListener('click', () => elements.paymentModal.classList.add('hidden'));
-        elements.paymentModal.addEventListener('click', (e) => {
-            if (e.target === elements.paymentModal) elements.paymentModal.classList.add('hidden');
-        });
     }
 
-    // Success Modal
+    // Success Modal Closing Logic
     const closeSuccess = () => {
-        elements.successModal.classList.add('hidden');
+        if (elements.successModal) elements.successModal.classList.add('hidden');
         resetForm();
     };
     if (elements.closeSuccessModal) elements.closeSuccessModal.addEventListener('click', closeSuccess);
@@ -312,7 +344,7 @@ function setupEventListeners() {
             if (e.target === elements.successModal) closeSuccess();
         });
     }
-}
+} // <--- Correctly close setupEventListeners
 
 // --- Payment & Creation Flow ---
 
@@ -359,7 +391,10 @@ async function createCheckoutSession() {
             language: state.language,
             characters: state.characters,
             occasion: state.occasion,
-            email: state.user.email
+            email: state.user.email,
+            user_id: state.user.id,
+            autoYoutube: elements.autoYoutube ? elements.autoYoutube.checked : true,
+            promoCode: elements.promoCodeInput ? elements.promoCodeInput.value.trim() : ""
         };
 
         const response = await fetch('/api/create_checkout_session', {
@@ -370,12 +405,25 @@ async function createCheckoutSession() {
 
         if (!response.ok) throw new Error('Failed to create payment session');
 
-        const session = await response.json();
+        const data = await response.json();
 
-        // Redirect to Stripe
-        const result = await stripe.redirectToCheckout({ sessionId: session.id });
-        if (result.error) throw new Error(result.error.message);
+        if (data.status === 'payment_skipped') {
+            // Free song! 🪄
+            if (elements.paymentModal) elements.paymentModal.classList.add('hidden');
+            if (elements.successModal) elements.successModal.classList.remove('hidden');
+            pollPendingSong(data.song_id);
 
+            // Reset button
+            btn.textContent = ogText;
+            btn.disabled = false;
+            return;
+        }
+
+        if (data.id) {
+            stripe.redirectToCheckout({ sessionId: data.id });
+        } else {
+            alert(data.error || 'Failed to create checkout session');
+        }
     } catch (error) {
         console.error('Payment Error:', error);
         alert('Payment failed: ' + error.message);
@@ -464,9 +512,7 @@ function updateLibraryDisplay() {
             ? `<a href="${song.youtubeUrl}" target="_blank" class="song-youtube-btn" onclick="event.stopPropagation()">
                 <span class="yt-icon">📺</span> View on YouTube
                </a>`
-            : `<button class="song-youtube-btn" onclick="event.stopPropagation(); uploadToYoutube('${song.id}', this)">
-                <span class="yt-icon">📺</span> Upload to YouTube
-               </button>`
+            : ''
         }
         </div>
     `).join('');
@@ -513,42 +559,6 @@ function downloadVideo(url, title) {
     a.click();
 }
 
-async function uploadToYoutube(songId, btn) {
-    const song = state.songs.find(s => s.id === songId);
-    if (!song) return;
-
-    // Show immediate feedback
-    const originalText = btn.innerHTML;
-    btn.innerHTML = 'Publishing... ⏳';
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/upload_youtube', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(song)
-        });
-
-        const text = await response.text();
-        let res;
-        try { res = JSON.parse(text); } catch (e) { throw new Error("Server error"); }
-
-        if (res.status === 'success') {
-            alert("🚀 Upload Scheduled! \n\nWe are publishing your song to YouTube. You will receive an email once it is ready and live!");
-            btn.innerHTML = 'Email will be sent 📩';
-            btn.style.background = '#666'; // Muted color
-        } else {
-            alert('❌ Upload Failed: ' + (res.message || "Unknown error"));
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    } catch (e) {
-        console.error("Upload error:", e);
-        alert('❌ Error starting upload. Please try again.');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
 
 
 // --- Initialization ---
