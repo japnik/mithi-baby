@@ -240,10 +240,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         else:
             # Check if this is a static file request
-            filepath = os.path.join(FRONTEND_DIR, self.path.lstrip('/'))
+            from urllib.parse import urlparse
+            parsed_path = urlparse(self.path).path
+            
+            filepath = os.path.join(FRONTEND_DIR, parsed_path.lstrip('/'))
             if not os.path.exists(filepath):
                 # Try relative to BASE_DIR/../frontend just in case
-                alt_path = os.path.join(BASE_DIR, "..", "frontend", self.path.lstrip('/'))
+                alt_path = os.path.join(BASE_DIR, "..", "frontend", parsed_path.lstrip('/'))
                 if os.path.exists(alt_path):
                     filepath = alt_path
             
