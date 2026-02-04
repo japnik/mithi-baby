@@ -38,10 +38,11 @@ backend/photos/
 backend/lyrics/
 backend/temp/
 backend/api_logs/
-*.mp4
-*.mp3
-*.jpg
-*.png
+backend/**/*.mp4
+backend/**/*.mp3
+backend/**/*.jpg
+backend/**/*.png
+!frontend/assets/logo.png
 
 # Auth Secrets
 backend/auth/client_secrets.json
