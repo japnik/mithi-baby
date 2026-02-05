@@ -1454,13 +1454,101 @@ body::after {
 
 /* Remove Hinglish specific style if any, but logic is handled in index.html */
 
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.slider {
+    background-color: var(--logo-clay);
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px var(--logo-clay);
+}
+
+input:checked+.slider:before {
+    transform: translateX(26px);
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.youtube-opt-in {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #fdfbf7;
+    padding: 1rem;
+    border-radius: var(--border-radius-sm);
+    border: 2px dashed #e2e8f0;
+}
+
 /* Auth & Payment Modal Styling */
 .auth-modal-content,
 .payment-modal-content {
     max-width: 450px !important;
+    width: 90% !important;
+    /* Ensure it doesn't overflow on small screens */
+    margin: 0 auto;
     text-align: center;
     border-radius: var(--border-radius-plump) !important;
-    padding: 3rem !important;
+    padding: 2rem !important;
+    /* Reduced padding for mobile */
+}
+
+/* Specific Mobile Adjustment for Modals */
+@media (max-width: 480px) {
+
+    .auth-modal-content,
+    .payment-modal-content {
+        padding: 1.5rem !important;
+        width: 95% !important;
+    }
+
+    .logo-img {
+        height: 180px !important;
+        /* Slightly smaller logo on mobile */
+    }
 }
 
 .modal-body {
@@ -1573,29 +1661,36 @@ body::after {
     color: var(--logo-brown);
 }
 
-.song-youtube-btn {
-    padding: 0.8rem 1.2rem;
-    background: #FF0000;
-    /* YouTube Red */
-    color: var(--white) !important;
-    border-radius: 12px;
-    text-decoration: none;
-    font-family: 'Fredoka', sans-serif;
-    font-weight: 700;
-    font-size: 0.85rem;
-    transition: var(--transition-bouncy);
+.song-yt-btn {
+    width: auto;
+    height: auto;
+    background: transparent !important;
     border: none;
+    cursor: pointer;
+    transition: transform 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2);
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    justify-content: center;
+    padding: 0;
+    margin-left: 0.5rem;
+    box-shadow: none !important;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));
 }
 
-.song-youtube-btn span.yt-icon {
-    font-size: 1.5rem;
+.song-yt-btn svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* Removes weird line-height gaps */
+}
+
+.song-yt-btn:hover {
+    transform: scale(1.1);
+    background: transparent !important;
+}
+
+.song-yt-btn:hover svg {
+    /* Optional: add hover effect specific to SVG if needed */
 }
 
 .yt-svg-icon {
