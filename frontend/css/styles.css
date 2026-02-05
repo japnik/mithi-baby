@@ -1321,6 +1321,8 @@ body::after {
     border-radius: 30px;
     box-shadow: 0 2px 8px var(--shadow-tactile);
     border: 1px solid var(--logo-cream);
+    max-width: 90vw;
+    /* Constrain width on mobile */
 }
 
 .user-icon {
@@ -1333,12 +1335,26 @@ body::after {
     align-items: center;
     justify-content: center;
     font-size: 0.75rem;
+    flex-shrink: 0;
+    /* Don't shrink icon */
 }
 
 .user-name-label {
     font-family: 'Fredoka', sans-serif;
     font-size: 0.8rem;
     color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+    /* Default max width */
+}
+
+@media (max-width: 480px) {
+    .user-name-label {
+        max-width: 120px;
+        /* Tighter truncation on mobile */
+    }
 }
 
 .logout-link {
@@ -1537,17 +1553,119 @@ input:checked+.slider:before {
 }
 
 /* Specific Mobile Adjustment for Modals */
+/* Specific Mobile Adjustment for Modals & Cards */
 @media (max-width: 480px) {
 
+    /* Compact Modals */
     .auth-modal-content,
     .payment-modal-content {
-        padding: 1.5rem !important;
+        padding: 1.5rem 1rem !important;
+        /* Tighter padding */
         width: 95% !important;
+        max-height: 90vh;
+        /* Prevent cut-off */
+        overflow-y: auto;
+        /* Allow internal scroll if needed */
+    }
+
+    .modal-body {
+        padding: 0 !important;
+        /* Remove nested padding */
+    }
+
+    .modal-brand-logo {
+        height: 60px !important;
+        /* Much smaller logo */
+        margin-bottom: 0.25rem;
+    }
+
+    .auth-modal-body h2,
+    .payment-modal-body h2 {
+        font-size: 1.5rem !important;
+        /* Smaller heading */
+        margin-bottom: 0.5rem;
+    }
+
+    .auth-modal-body p,
+    .payment-modal-body p {
+        font-size: 0.95rem !important;
+        /* Compact text */
+        line-height: 1.4;
+    }
+
+    .feature-list {
+        text-align: left;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
+
+    .cost-display {
+        margin: 1rem 0;
+        padding: 0.75rem;
+    }
+
+    .cost-amount {
+        font-size: 2rem;
+    }
+
+    /* Prevent Zoom/Overflow in Song Library */
+    .navbar {
+        padding: 2rem 0 1rem !important;
     }
 
     .logo-img {
-        height: 180px !important;
-        /* Slightly smaller logo on mobile */
+        height: 120px !important;
+        /* Smaller main logo */
+    }
+
+    .container {
+        padding: 1rem;
+        /* Reduced container padding */
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    .song-list {
+        width: 100%;
+    }
+
+    .song-card {
+        padding: 1rem !important;
+        gap: 0.75rem !important;
+        border-width: 3px !important;
+        /* Thinner border to save space */
+        flex-wrap: wrap;
+        /* Allow wrapping if needed, but try to keep tight */
+        justify-content: space-between;
+    }
+
+    .song-thumbnail {
+        width: 70px !important;
+        height: 70px !important;
+    }
+
+    .song-info {
+        min-width: 0;
+        /* Allow text truncation */
+    }
+
+    .song-title {
+        font-size: 1rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .song-play-btn {
+        width: 48px !important;
+        height: 48px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .song-yt-btn svg {
+        width: 40px !important;
+        /* Slightly smaller YT icon */
+        height: auto !important;
     }
 }
 
