@@ -14,15 +14,21 @@ def find_font(language, font_size):
     
     if language == "punjabi":
         possible_fonts.extend([
-            "/usr/share/fonts/truetype/lohit-punjabi/Lohit-Punjabi.ttf",
+            # Debian/Ubuntu (Standard)
+            "/usr/share/fonts/truetype/lohit-gurmukhi/Lohit-Gurmukhi.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansGurmukhi-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansGurmukhi-Regular.ttf",
+            # Legacy/Other Distros
+            "/usr/share/fonts/truetype/lohit-punjabi/Lohit-Punjabi.ttf", 
             "/System/Library/Fonts/Supplemental/KohinoorGurmukhi.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansGurmukhi-Regular.ttf"
         ])
     elif language == "hindi":
         possible_fonts.extend([
+            # Debian/Ubuntu
             "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+             "/usr/share/fonts/opentype/noto/NotoSansDevanagari-Regular.ttf",
             "/System/Library/Fonts/Supplemental/KohinoorDevanagari.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansDevanagari-Regular.ttf"
         ])
     
     # Generic fallbacks
