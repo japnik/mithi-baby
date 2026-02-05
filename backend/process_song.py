@@ -499,6 +499,31 @@ def main():
     
     log(f"Processing with base name: {base_name}")
     
+    # --- FIX: Initialize DB Row immediately for Visibility ---
+    sb_init = get_supabase_client()
+    if sb_init:
+        try:
+            # Create minimal entry to allow updates
+            init_payload = {
+                "id": song_id,
+                "baby_name": args.baby_name,
+                "status": "processing",
+                "occasion": args.occasion,
+                "metadata": {
+                    "history": [],
+                    "last_update": datetime.datetime.now().isoformat(), 
+                    "started_at": datetime.datetime.now().isoformat()
+                }
+            }
+            # Only set user_id if present to avoid key errors? Supabase should handle nulls if schema allows.
+            if args.user_id: init_payload["user_id"] = args.user_id
+            
+            sb_init.table("songs").upsert(init_payload).execute()
+            log("✅ Initialized Supabase row for visibility")
+        except Exception as e:
+            log(f"⚠️ Failed to init DB row: {e}", type_="WARNING")
+    # ---------------------------------------------------------
+
     try:
         # 1. Lyrics
         write_status(song_id, "processing", "Writing lyrics...", data={"stage": 1, "progress": 10})
