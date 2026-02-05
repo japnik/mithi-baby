@@ -570,7 +570,7 @@ function showSongDetails(songId) {
     if (!song) return;
     const detailsContent = document.getElementById('detailsContent');
     detailsContent.innerHTML = `
-        < h2 style = "margin-bottom: 1.5rem; color: var(--primary);" > ${song.title}</h2 >
+        <h2 style="margin-bottom: 1.5rem; color: var(--primary);">${song.title}</h2>
             <div style="background: #FFF5F7; padding: 1.5rem; border-radius: 12px; border: 1px solid #FFE8F0;">
                 <p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-dark); white-space: pre-line;">${song.lyrics || 'No lyrics available'}</p>
             </div>
@@ -584,6 +584,8 @@ function downloadVideo(url, title) {
     a.download = `${title}.mp4`;
     a.click();
 }
+
+
 
 
 
@@ -687,4 +689,4 @@ async function pollPendingSong(songId) {
 // Global expose
 window.playSongById = playSongById;
 window.showSongDetails = showSongDetails;
-window.uploadToYoutube = uploadToYoutube;
+

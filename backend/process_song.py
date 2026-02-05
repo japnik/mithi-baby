@@ -409,6 +409,14 @@ def main():
         write_status(song_id, "processing", "Writing lyrics...", data={"stage": 1, "progress": 10})
         lyrics_data = generate_lyrics(args.baby_name, args.language, args.characters.split(','), args.occasion)
         
+        # FIX: Post-process lyrics to prevent video overflow
+        # Split long lines by replacing comma+space with comma+newline
+        if lyrics_data.get('lyrics'):
+            log("formatting lyrics... adding newlines after commas")
+            lyrics_data['lyrics'] = lyrics_data['lyrics'].replace(', ', ',\n').replace(',', ',\n')
+            # Normalize double newlines just in case
+            lyrics_data['lyrics'] = lyrics_data['lyrics'].replace('\n \n', '\n').replace('\n\n\n', '\n\n')
+        
         # 2. Music & Image
         write_status(song_id, "processing", "Composing music & painting art...", data={
             "stage": 2, 
@@ -579,6 +587,14 @@ def main():
                         if yt_result and yt_result.get('status') == 'success':
                             youtube_url = yt_result['video_url']
                             log(f"✅ YouTube Upload Success: {youtube_url}")
+                            
+                            # Update Supabase with YouTube URL
+                            if sb_client:
+                                try:
+                                    sb_client.table("songs").update({"youtube_url": youtube_url}).eq("id", song_id).execute()
+                                    log(f"✅ Supabase updated with YouTube URL: {youtube_url}")
+                                except Exception as sbe:
+                                    log(f"⚠️ Error updating Supabase with YT URL: {sbe}", type_="WARNING")
 
                     except Exception as yt_err:
                         log(f"YouTube Upload Error: {yt_err}", type_="WARNING")
