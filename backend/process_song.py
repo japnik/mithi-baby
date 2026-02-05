@@ -172,6 +172,22 @@ def write_status(song_id, status, message, data=None, error=None):
             current_meta_db = {}
             if res.data and len(res.data) > 0:
                 current_meta_db = res.data[0].get("metadata", {}) or {}
+            
+            # History Logic: Append to existing list
+            history = current_meta_db.get("history", [])
+            # Only append if message is different from last to avoid noise? 
+            # User wants visibility, so capturing stage changes is key.
+            # Let's append if it's a new message or status change.
+            last_entry = history[-1] if history else {}
+            if last_entry.get("message") != message or last_entry.get("status") != status:
+                 history.append({
+                    "timestamp": timestamp,
+                    "status": status,
+                    "message": message,
+                    "stage": log_data.get("stage", "unknown")
+                })
+            
+            meta_update["history"] = history
                 
             merged_meta = {**current_meta_db, **meta_update}
             
