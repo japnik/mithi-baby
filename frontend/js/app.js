@@ -534,13 +534,12 @@ function updateLibraryDisplay() {
                     <span class="song-tag">${song.language}</span>
                 </div>
             </div>
-            <button class="song-play-btn" onclick="event.stopPropagation(); playSongById('${song.id}')">▶</button>
-            ${song.youtubeUrl
-            ? `<a href="${song.youtubeUrl}" target="_blank" class="song-youtube-btn" onclick="event.stopPropagation()">
-                <span class="yt-icon">📺</span> View on YouTube
-               </a>`
-            : ''
-        }
+            <div class="song-actions">
+                <button class="song-play-btn" onclick="event.stopPropagation(); playSongById('${song.id}')">▶</button>
+                ${song.youtubeUrl
+            ? `<button class="song-yt-btn" onclick="event.stopPropagation(); window.open('${song.youtubeUrl}', '_blank')">📺</button>`
+            : ''}
+            </div>
         </div>
     `).join('');
 }
@@ -553,7 +552,7 @@ function playSongById(songId) {
 
 function playSong(song) {
     elements.playerTitle.textContent = song.title;
-    elements.playerMeta.textContent = `${song.babyName} • ${song.language}`;
+    elements.playerMeta.textContent = `${song.babyName} • ${song.language} `;
     elements.videoPlayer.src = song.videoUrl;
     elements.videoPlayer.poster = song.coverImageUrl;
     elements.downloadBtn.onclick = () => downloadVideo(song.videoUrl, song.title);
@@ -571,10 +570,10 @@ function showSongDetails(songId) {
     if (!song) return;
     const detailsContent = document.getElementById('detailsContent');
     detailsContent.innerHTML = `
-        <h2 style="margin-bottom: 1.5rem; color: var(--primary);">${song.title}</h2>
-        <div style="background: #FFF5F7; padding: 1.5rem; border-radius: 12px; border: 1px solid #FFE8F0;">
-            <p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-dark); white-space: pre-line;">${song.lyrics || 'No lyrics available'}</p>
-        </div>
+        < h2 style = "margin-bottom: 1.5rem; color: var(--primary);" > ${song.title}</h2 >
+            <div style="background: #FFF5F7; padding: 1.5rem; border-radius: 12px; border: 1px solid #FFE8F0;">
+                <p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-dark); white-space: pre-line;">${song.lyrics || 'No lyrics available'}</p>
+            </div>
     `;
     elements.detailsModal.classList.remove('hidden');
 }
@@ -650,7 +649,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Trigger generation by calling backend to "verify_and_generate" using session_id
         try {
             const sessionId = urlParams.get('session_id');
-            fetch(`/api/payment_success?session_id=${sessionId}`)
+            fetch(`/ api / payment_success ? session_id = ${sessionId} `)
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'started') {
@@ -670,7 +669,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function pollPendingSong(songId) {
     const interval = setInterval(async () => {
         try {
-            const res = await fetch(`/task_status/${songId}`);
+            const res = await fetch(`/ task_status / ${songId} `);
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'completed') {
