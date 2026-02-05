@@ -88,10 +88,11 @@ def write_status(song_id, status, message, data=None, error=None):
                 current_data = json.load(f)
         except: pass
         
+    timestamp = datetime.datetime.now().isoformat()
     update_payload = {
         "status": status,
         "message": message,
-        "updated": datetime.datetime.now().isoformat()
+        "updated": timestamp
     }
     
     # Merge existing data (like lyrics, audio_url etc)
@@ -103,8 +104,86 @@ def write_status(song_id, status, message, data=None, error=None):
     if error:
         final_data["error"] = str(error)
         
+    # Write to local status file (legacy/backup)
     with open(status_file, "w") as f:
         json.dump(final_data, f, indent=2)
+
+    # --- PUSH TO SUPABASE ---
+    global supabase
+    if not supabase: get_supabase_client() # Ensure initialized
+    
+    if supabase:
+        try:
+            # We want to strictly update status/metadata without overwriting other fields if possible
+            # But 'upsert' works well if we have the ID.
+            # Ideally we check if it exists or we just PATCH.
+            # Supabase-py 'update' is cleaner for existing rows.
+            
+            # Construct metadata update
+            # careful not to overwrite existing metadata completely if we can avoid it, 
+            # but upsert usually replaces. 
+            # Let's read current DB state? No, that's too slow.
+            # We will assume we can merge into metadata.
+            
+            # Actually, let's just push "last_status_message" and "current_stage" to metadata
+            # So we don't wipe potentially other keys if we were doing a full replace.
+            # But here we probably want to update the 'status' column and 'metadata' column.
+            
+            # Simple approach: Update 'status' column + append to 'progress_history' in metadata?
+            # Or just update a 'last_message' field in metadata.
+            
+            db_update = {
+                "status": "processing" if status == "processing" else status, # Keep as processing until complete/fail
+                # We can't easily deep-merge JSONB in a single 'update' call without a stored proc or raw SQL.
+                # So we will just write what we know to specific keys in metadata if possible, 
+                # OR we accept that we might be overwriting metadata. 
+                # HOWEVER, process_song is the primary writer.
+                
+                # Let's try to just update specific fields if we are ensuring we don't lose data.
+            }
+            
+            # For now, let's just log the key info to metadata
+            # We will fetch the current row first to be safe about metadata merging?
+            # No, that's an extra RTT.
+            # Let's just UPSERT with the critical fields we want to track.
+            
+            # Actually, `status` column is likely an ENUM or text.
+            
+            # Status mapping
+            db_status = status
+            if status == "processing" and "music" in message.lower(): db_status = "generating_music"
+            elif status == "processing" and "video" in message.lower(): db_status = "rendering_video"
+            
+            # But the DB constraint might be simple. Let's stick to existing "processing", "completed", "failed"
+            # and put details in metadata.
+            
+            meta_update = {
+                "last_update": timestamp,
+                "current_message": message,
+                "current_stage": log_data.get("stage", "unknown"),
+                "progress": log_data.get("progress", 0)
+            }
+            
+            if error: meta_update["error"] = str(error)
+            
+            # Safe Update: Fetch current metadata first to merge
+            # This prevents us from wiping 'suno_task_id' if we wrote it earlier
+            res = supabase.table("songs").select("metadata").eq("id", song_id).execute()
+            current_meta_db = {}
+            if res.data and len(res.data) > 0:
+                current_meta_db = res.data[0].get("metadata", {}) or {}
+                
+            merged_meta = {**current_meta_db, **meta_update}
+            
+            supabase.table("songs").update({
+                "status": status, # 'processing', 'failed', 'completed'
+                "metadata": merged_meta
+            }).eq("id", song_id).execute()
+            
+            # log("✨ Pushed status to Supabase DB") # Too noisy
+            
+        except Exception as db_e:
+            log(f"⚠️ Failed to push status to DB: {db_e}", type_="WARNING")
 
 # --- API Clients ---
 
@@ -220,7 +299,7 @@ Format your response as JSON:
         }
     }
     
-    resp = requests.post(url, json=payload)
+    resp = requests.post(url, json=payload, timeout=30)
     if resp.status_code != 200:
         raise Exception(f"Gemini API Error: {resp.text}")
         
@@ -252,7 +331,7 @@ def generate_music(lyrics, title, style):
         "callBackUrl": "https://example.com/callback" # Required by API now
     }
     
-    resp = requests.post(url, json=payload, headers=headers)
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
     if resp.status_code != 200:
         raise Exception(f"Suno Init Error: {resp.text}")
         
@@ -270,7 +349,7 @@ def generate_music(lyrics, title, style):
     for i in range(120): # 10 mins max
         time.sleep(5)
         poll_url = f"{SUNO_BASE_URL}/api/v1/generate/record-info?taskId={task_id}"
-        poll_resp = requests.get(poll_url, headers=headers)
+        poll_resp = requests.get(poll_url, headers=headers, timeout=30)
         data = poll_resp.json()
         
         status = data.get('data', {}).get('status')
@@ -296,7 +375,7 @@ def get_aligned_lyrics(task_id, audio_id, headers):
         if i > 0: time.sleep(5)
         
         try:
-            resp = requests.post(url, json=payload, headers=headers)
+            resp = requests.post(url, json=payload, headers=headers, timeout=30)
             data = resp.json()
             
             if data.get('code') == 200 and data.get('data') and data['data'].get('alignedWords'):
@@ -329,7 +408,7 @@ def generate_image(prompt):
         "callBackUrl": "https://example.com/callback"
     }
     
-    resp = requests.post(url, json=payload, headers=headers)
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
     if resp.status_code != 200:
         print(f"Image Init Warning: {resp.text}")
         return None
@@ -340,7 +419,7 @@ def generate_image(prompt):
     for i in range(30): # 60s max
         time.sleep(2)
         poll_url = f"{SUNO_BASE_URL}/api/v1/jobs/recordInfo?taskId={task_id}"
-        poll_resp = requests.get(poll_url, headers=headers)
+        poll_resp = requests.get(poll_url, headers=headers, timeout=30)
         data = poll_resp.json()
         
         state = data.get('data', {}).get('state')
@@ -361,7 +440,7 @@ def download_file(url, path):
         'User-Agent': 'Mozilla/5.0'
     }
     try:
-        with requests.get(url, stream=True, headers=headers) as r:
+        with requests.get(url, stream=True, headers=headers, timeout=60) as r:
             r.raise_for_status()
             with open(path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
