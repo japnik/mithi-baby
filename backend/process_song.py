@@ -710,7 +710,15 @@ def main():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        write_status(song_id, "failed", "Process failed", error=str(e))
+        
+        # Friendly Error Messages
+        error_msg = str(e)
+        if isinstance(e, requests.exceptions.Timeout):
+            error_msg = "External API timed out (30s limit). Please try again."
+        elif isinstance(e, requests.exceptions.ConnectionError):
+            error_msg = "Network connection failed."
+            
+        write_status(song_id, "failed", "Process failed", error=error_msg)
         sys.exit(1)
 
 if __name__ == "__main__":
