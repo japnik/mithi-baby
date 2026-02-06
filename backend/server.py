@@ -184,7 +184,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({
-                "SUPABASE_URL": SUPABASE_URL,
+                "SUPABASE_URL": os.getenv("SUPABASE_CUSTOM_DOMAIN") or SUPABASE_URL,
                 "SUPABASE_KEY": SUPABASE_KEY,
                 "STRIPE_PUBLIC_KEY": STRIPE_PUBLIC_KEY,
                 "ENABLE_PAYMENTS": ENABLE_PAYMENTS
