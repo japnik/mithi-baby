@@ -129,9 +129,6 @@ def write_status(song_id, status, message, data=None, error=None):
             # So we don't wipe potentially other keys if we were doing a full replace.
             # But here we probably want to update the 'status' column and 'metadata' column.
             
-            # Simple approach: Update 'status' column + append to 'progress_history' in metadata?
-            # Or just update a 'last_message' field in metadata.
-            
             db_update = {
                 "status": "processing" if status == "processing" else status, # Keep as processing until complete/fail
                 # We can't easily deep-merge JSONB in a single 'update' call without a stored proc or raw SQL.
@@ -203,10 +200,54 @@ def write_status(song_id, status, message, data=None, error=None):
 
 # --- API Clients ---
 
+def clean_lyrics_with_paragraphs(text):
+    # Split by lines
+    raw_lines = text.split('\n')
+    processed_lines = []
+    
+    for line in raw_lines:
+        line = line.strip()
+        if not line:
+            # Preserve existing paragraph breaks if they exist
+            if processed_lines and processed_lines[-1] != "":
+                processed_lines.append("")
+            continue
+        
+        # 1. Handle comma splitting (to keep lines short for video)
+        # We split by comma to ensure video lines don't wrap/overflow
+        sub_parts = [p.strip() for p in line.split(',') if p.strip()]
+        
+        for part in sub_parts:
+            # 2. Robust Case-Insensitive Check for Section Markers
+            # Remove symbols like [] () : to find the bare word
+            word_check = re.sub(r'[\[\]\(\):]', '', part).strip().lower()
+            
+            # Check if this sub-part is a section header (e.g. "Verse 1", "CHORUS", "(Verse)")
+            is_marker = any(word_check.startswith(tag) for tag in ["verse", "chorus"])
+            
+            if is_marker:
+                # Ensure a double newline before a new section
+                if processed_lines and processed_lines[-1] != "":
+                    processed_lines.append("")
+            
+            processed_lines.append(part)
+
+    # 3. Final normalization
+    # Filter out redundant empty lines (no triples)
+    final_output = []
+    for line in processed_lines:
+        if line == "":
+            if final_output and final_output[-1] != "":
+                final_output.append("")
+        else:
+            final_output.append(line)
+            
+    return "\n".join(final_output).strip()
+
 def generate_lyrics(baby_name, language, characters, occasion):
     log(f"Generating lyrics for {baby_name} ({language})...", data={"characters": characters, "occasion": occasion})
     
-    # Handle Random occasion (Ported from gemini-api.js)
+    # Handle Random occasion
     if occasion == "Random":
         random_occasions = ['Playtime', 'Good Morning', 'Sweet Dreams', 'Bath Time', 'Tummy Time', 'Happy Moments']
         original_occasion = occasion
@@ -219,7 +260,6 @@ def generate_lyrics(baby_name, language, characters, occasion):
         'Hinglish': 'Latin (English)'
     }
     
-    # Specific instruction for Hindi to match the strictness of Punjabi
     script_check = ""
     if language == "Hindi":
         script_check = "- IF HINDI: Use DEVANAGARI script (e.g. सो जा). DO NOT use Roman (English) characters."
@@ -233,9 +273,25 @@ def generate_lyrics(baby_name, language, characters, occasion):
 - Rhythm: Slow, rocking lullaby style, melodic"""
 
     visual_style = "Soft lighting, dreamy, night time, stars, peaceful, cozy, magical glow, aesthetics"
-
     characters_text = ", ".join(characters)
     
+    structure_instruction = f"""
+STRUCTURE REQUIREMENTS:
+- Structure MUST be: Verse 1 -> Chorus -> Verse 2 -> Chorus -> Verse 3 -> Chorus -> Verse 4.
+- Verses: Exactly 4 lines each. Rhyming is required (AABB or ABAB). Label them as "Verse 1", "Verse 2", etc. in English.
+- Chorus: Exactly 2 lines. MUST be repeated after every verse. MUST be in {language}.
+- Labels: Use English labels "(Chorus)" and "Verse 1", "Verse 2", etc. regardless of the song language.
+- Chorus Content: MUST include baby's name "{baby_name}".
+- Content Distribution: 
+    - Verse 1: Introduction / Baby
+    - Verse 2: Mention first set of characters (e.g. Mummy/Papa)
+    - Verse 3: Mention next set of characters (e.g. Dadu/Dadi/Nanu/Nani)
+    - Verse 4: Conclusion / Sleep / Blessings
+- Formatting:
+    - Keep lines SHORT (max 6-7 words).
+    - DO NOT use commas within verses. If you need a pause, start a new line.
+"""
+
     prompt = f"""Create a {occasion} song in {language} for baby {baby_name}.
 
 The song should mention and celebrate these people as important in the baby's life: {characters_text}.
@@ -243,13 +299,14 @@ The song should mention and celebrate these people as important in the baby's li
 CRITICAL LANGUAGE REQUIREMENTS:
 - CRITICAL: SCRIPT must be {script_names.get(language, 'Latin')}.
 {script_check}
-- DO NOT use English or romanized text (unless language is Hinglish)
-- Use authentic {language} vocabulary and grammar
+- DO NOT use English or romanized text.
+- Use authentic {language} vocabulary and grammar.
+
+{structure_instruction}
 
 Requirements:
 {mood_requirements}
 - Culturally appropriate for {language} families
-- 4-6 short verses (each verse 2-4 lines)
 - Include baby's name "{baby_name}" naturally in the lyrics
 - Mention each of these people lovingly: {characters_text}
 - Use {language} script throughout
@@ -277,7 +334,7 @@ Format your response as JSON:
 {{
   "title": "Song Title",
   "lyrics": "Full lyrics here...",
-  "image_prompt": "Image generation prompt here...",
+  "imagePrompt": "Image generation prompt here...",
   "musicStyle": "Music style tags here"
 }}"""
 
@@ -322,7 +379,17 @@ Format your response as JSON:
     result = resp.json()
     try:
         content_text = result['candidates'][0]['content']['parts'][0]['text']
-        return json.loads(content_text)
+        parsed = json.loads(content_text)
+        
+        # Post-processing: Image prompt text injection
+        if 'imagePrompt' in parsed:
+            parsed['imagePrompt'] += f'. Write "Baby {baby_name}s Lullaby" at the top.'
+            
+        # Post-processing: Formatting Cleanup (Preserving Paragraphs)
+        if 'lyrics' in parsed:
+            parsed['lyrics'] = clean_lyrics_with_paragraphs(parsed['lyrics'])
+            
+        return parsed
     except (KeyError, json.JSONDecodeError) as e:
         raise Exception(f"Failed to parse Gemini response: {e}")
 
@@ -533,13 +600,11 @@ def main():
         write_status(song_id, "processing", "Writing lyrics...", data={"stage": 1, "progress": 10})
         lyrics_data = generate_lyrics(args.baby_name, args.language, args.characters.split(','), args.occasion)
         
-        # FIX: Post-process lyrics to prevent video overflow
-        # Split long lines by replacing comma+space with comma+newline
+        # Post-process lyrics: The prompt ensures this usually, but we double-verify here
+        # to ensure no video overflow and clean formatting for display. 
         if lyrics_data.get('lyrics'):
-            log("formatting lyrics... adding newlines after commas")
-            lyrics_data['lyrics'] = lyrics_data['lyrics'].replace(', ', ',\n').replace(',', ',\n')
-            # Normalize double newlines just in case
-            lyrics_data['lyrics'] = lyrics_data['lyrics'].replace('\n \n', '\n').replace('\n\n\n', '\n\n')
+            log("verifying lyrics formatting...")
+            lyrics_data['lyrics'] = clean_lyrics_with_paragraphs(lyrics_data['lyrics'])
 
         # Update DB: Lyrics Generated
         if supabase:
