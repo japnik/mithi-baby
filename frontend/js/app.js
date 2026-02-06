@@ -7,7 +7,8 @@ const CONFIG = {
     SUNO_BASE_URL: '',
     SUPABASE_URL: '', // Loaded from config.json
     SUPABASE_KEY: '', // Loaded from config.json
-    STRIPE_PUBLIC_KEY: ''
+    STRIPE_PUBLIC_KEY: '',
+    ENABLE_PAYMENTS: true // Default true
 };
 
 // API Instances
@@ -379,10 +380,15 @@ async function handlePayAndCreateSong() {
     }
 
     // 3. Show Payment Commitment Modal Instead of checking out immediately
-    if (elements.paymentModal) {
-        elements.paymentModal.classList.remove('hidden');
+    if (CONFIG.ENABLE_PAYMENTS) {
+        if (elements.paymentModal) {
+            elements.paymentModal.classList.remove('hidden');
+        } else {
+            createCheckoutSession(); // Fallback
+        }
     } else {
-        createCheckoutSession(); // Fallback
+        // Bypass Payment Modal if disabled
+        createCheckoutSession();
     }
 }
 
@@ -472,7 +478,8 @@ async function loadSongsFromStorage() {
                 .from('songs')
                 .select('*')
                 .eq('user_id', state.user.id) // Filter by logged-in user
-                .order('created_at', { ascending: false });
+                .order('started_at', { ascending: false })
+                .order('created_at', { ascending: false }); // Fallback sorting
 
             if (!error && data) {
                 songs = data;
@@ -506,8 +513,19 @@ async function loadSongsFromStorage() {
                 audioUrl: s.audio_url,
                 youtubeUrl: s.youtube_url,
                 createdAt: s.date || s.created_at,
+                createdAt: s.date || s.created_at,
                 source: "cloud"
-            }));
+            })).filter(s => {
+                // Filter out bad data ("null" titles) UNLESS it is processing
+                // If processing, title might be null, so we keep it and handle display in UI
+                if (s.title === "null" || !s.title) {
+                    // Only keep if explicitly processing/pending
+                    // But if it's completed and null, it's junk.
+                    // Actually, let's just sanitize the title in display.
+                    return true;
+                }
+                return true;
+            });
             updateLibraryDisplay();
         }
     } catch (e) {
@@ -526,9 +544,9 @@ function updateLibraryDisplay() {
     elements.libraryEmpty.classList.add('hidden');
     elements.songList.innerHTML = state.songs.map(song => `
         <div class="song-card" onclick="playSongById('${song.id}')">
-            <img src="${song.coverImageUrl}" alt="${song.title}" class="song-thumbnail">
+            <img src="${song.coverImageUrl || 'assets/logo.png'}" alt="${song.title || 'Generating...'}" class="song-thumbnail">
             <div class="song-info">
-                <h3 class="song-title">${song.title}</h3>
+                <h3 class="song-title">${(!song.title || song.title === 'null') ? '✨ Creating Song...' : song.title}</h3>
                 <div class="song-tags">
                     <span class="song-tag">${song.language}</span>
                 </div>
@@ -604,6 +622,7 @@ async function loadConfig() {
         CONFIG.SUPABASE_URL = config.SUPABASE_URL;
         CONFIG.SUPABASE_KEY = config.SUPABASE_KEY;
         CONFIG.STRIPE_PUBLIC_KEY = config.STRIPE_PUBLIC_KEY; // NEW
+        CONFIG.ENABLE_PAYMENTS = config.ENABLE_PAYMENTS;
 
         if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY && window.supabase) {
             supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);

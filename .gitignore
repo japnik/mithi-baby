@@ -47,3 +47,5 @@ backend/**/*.png
 # Auth Secrets
 backend/auth/client_secrets.json
 backend/auth/token.pickle
+
+testing/

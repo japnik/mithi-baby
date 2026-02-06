@@ -511,9 +511,13 @@ def main():
                 "occasion": args.occasion,
                 "metadata": {
                     "history": [],
-                    "last_update": datetime.datetime.now().isoformat(), 
-                    "started_at": datetime.datetime.now().isoformat()
-                }
+                    "last_update": datetime.datetime.now().isoformat()
+                },
+                "started_at": datetime.datetime.now().isoformat(),
+                "lyrics_generated": False,
+                "music_created": False,
+                "thumbnail_created": False,
+                "video_created": False
             }
             # Only set user_id if present to avoid key errors? Supabase should handle nulls if schema allows.
             if args.user_id: init_payload["user_id"] = args.user_id
@@ -536,6 +540,11 @@ def main():
             lyrics_data['lyrics'] = lyrics_data['lyrics'].replace(', ', ',\n').replace(',', ',\n')
             # Normalize double newlines just in case
             lyrics_data['lyrics'] = lyrics_data['lyrics'].replace('\n \n', '\n').replace('\n\n\n', '\n\n')
+
+        # Update DB: Lyrics Generated
+        if supabase:
+             try: supabase.table("songs").update({"lyrics_generated": True}).eq("id", song_id).execute()
+             except: pass
         
         # 2. Music & Image
         write_status(song_id, "processing", "Composing music & painting art...", data={
@@ -553,6 +562,10 @@ def main():
         headers = {"Authorization": f"Bearer {SUNO_API_KEY}", "Content-Type": "application/json"}
         aligned_data = get_aligned_lyrics(music_track['taskId'], music_track['id'], headers)
         
+        if supabase:
+             try: supabase.table("songs").update({"music_created": True}).eq("id", song_id).execute()
+             except: pass
+
         image_url = generate_image(lyrics_data['imagePrompt'])
         
         remote_audio_url = music_track['audioUrl']
@@ -560,6 +573,10 @@ def main():
         # Fallback image
         if not image_url:
             image_url = music_track['imageUrl']
+
+        if supabase:
+             try: supabase.table("songs").update({"thumbnail_created": True}).eq("id", song_id).execute()
+             except: pass
             
         write_status(song_id, "processing", "Downloading assets...", data={
             "stage": 2,
@@ -679,7 +696,8 @@ def main():
                         "image_prompt": lyrics_data.get('imagePrompt'),
                         "local_video_path": video_path, # Legacy
                         "lyrics_json_url": s_lyrics_url
-                    }
+                    },
+                    "video_created": True
                 }
                 
                 sb_client.table("songs").upsert(db_payload).execute()

@@ -21,6 +21,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY")
 
 # --- Config & Supabase Setup ---
+ENABLE_PAYMENTS = os.getenv("ENABLE_PAYMENTS", "true").lower() == "true"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -186,6 +187,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 "SUPABASE_URL": SUPABASE_URL,
                 "SUPABASE_KEY": SUPABASE_KEY,
                 "STRIPE_PUBLIC_KEY": STRIPE_PUBLIC_KEY,
+                "ENABLE_PAYMENTS": ENABLE_PAYMENTS
                 # Backend-only keys shouldn't be here
             }).encode())
 
@@ -385,8 +387,27 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 
                 response_payload = {}
                 
+                # 0. Global Payment Switch OFF
+                if not ENABLE_PAYMENTS:
+                    print(f"⏩ Payment Disabled via Env Var. Skipping Stripe.")
+                    user_email = data.get('email')
+                    baby_name = data.get('babyName', 'Baby')
+                    
+                    song_id = self.trigger_generation_process({
+                        "babyName": baby_name,
+                        "language": data.get('language'),
+                        "characters": data.get('characters', []),
+                        "occasion": data.get('occasion'),
+                        "user_email": user_email,
+                        "user_id": data.get('user_id'),
+                        "autoYoutube": data.get('autoYoutube') is True or data.get('autoYoutube') == 'true'
+                    })
+                    
+                    if user_email: send_payment_success_email(user_email, baby_name)
+                    response_payload = {"status": "payment_skipped", "song_id": song_id}
+
                 # 1. Valid Promo Code
-                if promo_code.lower() == test_promo.lower():
+                elif promo_code.lower() == test_promo.lower():
                     print(f"🎟️ Valid Promo Code used: {promo_code}. Bypassing Stripe.")
                     user_email = data.get('email')
                     baby_name = data.get('babyName', 'Baby')
