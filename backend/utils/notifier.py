@@ -14,9 +14,9 @@ def send_payment_success_email(user_email, baby_name):
     try:
         html_content = f"""
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #644d3a;">🎶 Payment Received! Your song for {baby_name} is in the works.</h2>
+            <h2 style="color: #644d3a;">🎶 We've started! Your song for {baby_name} is in the works.</h2>
             <p>Hello,</p>
-            <p>Thank you for your payment! We've successfully queued your personalized song for <strong>{baby_name}</strong>.</p>
+            <p>We've successfully queued your personalized song for <strong>{baby_name}</strong>.</p>
             
             <p>Our magical nursery is now:</p>
             <ul style="color: #666; line-height: 1.6;">

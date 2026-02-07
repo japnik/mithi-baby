@@ -308,60 +308,70 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
         except Exception as e:
             log(f"Warning: Base composition failed: {e}", type_="WARNING")
 
-        # Cache of pre-rendered full frames (numpy arrays)
-        # Key: (para_tuple, highlight_idx)
-        frame_cache = {}
-        
-        log(f"🚀 Pre-calculating {len(paragraphs)} paragraph states...")
-        t_pre = time.time()
-        
-        # Neutral frame (just the base)
-        frame_cache[(-1, -1)] = np.array(base_frame_clean.convert("RGB"))
+        # 6. Optimized Rendering Logic
+        # We no longer pre-calculate ALL frames into a giant dictionary.
+        # Instead, we render each unique state on-the-fly and cache a few using LRU.
+        from functools import lru_cache
 
-        for p_idx, para in enumerate(paragraphs):
-            # For each paragraph, we need N+1 states (N lines highlighted + 1 none)
-            states = para + [-1]
-            for h_idx in states:
-                frame_img = base_frame_clean.copy()
-                
-                # Layout: Center the visible paragraph block
-                total_h = sum([line_images[ali]['h'] for ali in para]) + (len(para)-1)*40
-                curr_y = (H - total_h) / 2 + 300 # Lower half offset
-                
-                for line_idx in para:
-                    # Select white or highlighted image
-                    img_key = 'g' if line_idx == h_idx else 'w'
-                    line_img_path = line_images[line_idx][img_key]
-                    
-                    with Image.open(line_img_path) as li:
-                        x_pos = (W - li.width) // 2
-                        frame_img.alpha_composite(li.convert("RGBA"), (x_pos, int(curr_y)))
-                        curr_y += line_images[line_idx]['h'] + 40
-                
-                # Convert to RGB numpy array for MoviePy
-                frame_cache[(p_idx, h_idx)] = np.array(frame_img.convert("RGB"))
+        W, H = VIDEO_SIZE
+        base_frame_clean = Image.new('RGBA', (W, H), bg_rgb + (255,))
         
-        log(f"✅ Pre-calculation complete. Cached {len(frame_cache)} frames in {time.time() - t_pre:.1f}s")
+        # Add Title and Cover once to base
+        try:
+            title_img = Image.open(title_path).convert("RGBA")
+            title_x = (W - title_img.width) // 2
+            base_frame_clean.alpha_composite(title_img, (title_x, 100))
+            title_img.close()
+            
+            cover_img = Image.open(image_path).convert("RGBA")
+            aspect = cover_img.height / cover_img.width
+            new_h = int(600 * aspect)
+            cover_img = cover_img.resize((600, new_h), resample=Image.ANTIALIAS)
+            cover_x = (W - 600) // 2
+            base_frame_clean.alpha_composite(cover_img, (cover_x, 250))
+            cover_img.close()
+        except Exception as e:
+            log(f"Warning: Base composition failed: {e}", type_="WARNING")
+
+        @lru_cache(maxsize=16)
+        def get_frame_state(p_idx, h_idx):
+            """Render a specific paragraph state and cache it."""
+            frame_img = base_frame_clean.copy()
+            
+            if p_idx == -1:
+                return np.array(frame_img.convert("RGB"))
+
+            para = paragraphs[p_idx]
+            # Layout: Center the visible paragraph block
+            total_h = sum([line_images[ali]['h'] for ali in para]) + (len(para)-1)*40
+            curr_y = (H - total_h) / 2 + 300 # Lower half offset
+            
+            for line_idx in para:
+                img_key = 'g' if line_idx == h_idx else 'w'
+                line_img_path = line_images[line_idx][img_key]
+                
+                with Image.open(line_img_path) as li:
+                    x_pos = (W - li.width) // 2
+                    frame_img.alpha_composite(li.convert("RGBA"), (x_pos, int(curr_y)))
+                    curr_y += line_images[line_idx]['h'] + 40
+            
+            return np.array(frame_img.convert("RGB"))
 
         def make_frame(t):
-            # 1. Find Active State
             active_p_idx = -1
             active_h_idx = -1
             
-            # Find which line is currently highlighted
             for seg in timeline:
                 if seg['start'] <= t <= seg['end']: 
                     active_h_idx = seg['line']
                     break
             
-            # Find the paragraph containing that line
             if active_h_idx != -1:
                 for p_idx, para in enumerate(paragraphs):
                     if active_h_idx in para:
                         active_p_idx = p_idx
                         break
             
-            # State fallback: If drift/no-match, show LAST matched paragraph (neutral)
             if active_p_idx == -1:
                 last_idx = 0
                 for seg in timeline:
@@ -374,8 +384,7 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
                         break
                 active_h_idx = -1 # No highlight
 
-            # 2. Return cached frame
-            return frame_cache.get((active_p_idx, active_h_idx), frame_cache[(-1, -1)])
+            return get_frame_state(active_p_idx, active_h_idx)
 
         text_clip = VideoClip(make_frame, duration=duration)
         audio = AudioFileClip(audio_path)
@@ -387,15 +396,14 @@ def generate_video(song_id, title="Baby Song", output_path=None, s_audio=None, s
         raise
     
     log(f"Rendering {output_path}...", data={"codec": "libx264", "fps": 24})
-    write_status(song_id, "processing", "Rendering video (Optimized Engine)...")
+    write_status(song_id, "processing", "Rendering video (Memory Optimized Mode)...")
     temp_output = output_path + ".temp.mp4"
     if os.path.exists(temp_output): os.remove(temp_output)
     
     try:
         t_start_render = time.time()
-        # Use more threads if available (matches the user's 8 CPU upgrade)
-        # fps=24 is standard. 
-        final.write_videofile(temp_output, fps=24, codec='libx264', audio_codec='aac', threads=8)
+        # Use only 1 thread for 1-CPU environment to keep memory usage minimal.
+        final.write_videofile(temp_output, fps=24, codec='libx264', audio_codec='aac', threads=1)
         log(f"✅ Video encoding complete. (Took {time.time() - t_start_render:.1f}s)")
         
         # Atomic rename to final path

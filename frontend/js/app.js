@@ -513,18 +513,17 @@ async function loadSongsFromStorage() {
                 audioUrl: s.audio_url,
                 youtubeUrl: s.youtube_url,
                 createdAt: s.date || s.created_at,
-                createdAt: s.date || s.created_at,
+                status: s.status,
                 source: "cloud"
             })).filter(s => {
-                // Filter out bad data ("null" titles) UNLESS it is processing
-                // If processing, title might be null, so we keep it and handle display in UI
-                if (s.title === "null" || !s.title) {
-                    // Only keep if explicitly processing/pending
-                    // But if it's completed and null, it's junk.
-                    // Actually, let's just sanitize the title in display.
-                    return true;
-                }
-                return true;
+                // If title exists, show it.
+                if (s.title && s.title !== "null") return true;
+
+                // If title is null but it's still 'processing', show it (as "Creating Song...")
+                if (s.status === 'processing') return true;
+
+                // Hide everything else with a null title.
+                return false;
             });
             updateLibraryDisplay();
         }
@@ -674,7 +673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Trigger generation by calling backend to "verify_and_generate" using session_id
         try {
             const sessionId = urlParams.get('session_id');
-            fetch(`/ api / payment_success ? session_id = ${sessionId} `)
+            fetch(`/api/payment_success?session_id=${sessionId}`)
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'started') {

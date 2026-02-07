@@ -576,6 +576,7 @@ def main():
                 "baby_name": args.baby_name,
                 "status": "processing",
                 "occasion": args.occasion,
+                "language": args.language,
                 "metadata": {
                     "history": [],
                     "last_update": datetime.datetime.now().isoformat()
