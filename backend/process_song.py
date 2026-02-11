@@ -314,7 +314,8 @@ Requirements:
 - Include a repeating chorus that's easy to remember
 
             Please provide:
-1. A beautiful title for the song (MUST include "{baby_name}" and "{occasion}")
+1. A beautiful title for the song in {language} script (MUST include "{baby_name}" and "{occasion}").
+   - CRITICAL: Use ONLY {language} and its script. NO English characters in the title.
 2. The complete lyrics
 3. A detailed prompt for generating a cover image for this song.
    - CRITICAL: The image prompt must describe a SCENE WITHOUT ANY HUMANS OR PEOPLE.
